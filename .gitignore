@@ -1,0 +1,11 @@
+# Arquivos gerados pelo Python
+__pycache__/
+*.pyc
+
+# Ambiente virtual
+.venv/
+venv/
+
+# Banco de dados e evidências gerados ao executar o sistema
+devolucoes.db
+evidencias/
