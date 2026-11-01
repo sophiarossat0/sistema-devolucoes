@@ -113,6 +113,61 @@ class UsuarioComercial(Usuario):
     def obterPerfil(self):
         return PERFIL_COMERCIAL
 
+    def conferirDevolucao(self, devolucao):
+        verificar_aberta(devolucao)
+        if devolucao.conferidaComercial:
+            raise ErroRegraNegocio("Esta devolução já foi conferida pelo Comercial.")
+        devolucao.conferidaComercial = True
+        devolucao.registrarHistorico("Devolução conferida com os dados da plataforma de origem", self)
+
+    def registrarEncaminhamento(self, item):
+        devolucao = item.devolucao
+        verificar_aberta(devolucao)
+        if not devolucao.conferidaComercial:  # RN-06 / RN-07
+            raise ErroRegraNegocio("A devolução precisa ser conferida pelo Comercial antes do encaminhamento.")
+        if item.situacao != SEM_AVARIA:  # RN-07
+            raise ErroRegraNegocio("Somente produtos Sem Avaria podem ser encaminhados ao estoque.")
+        if item.foiEncaminhado():
+            raise ErroRegraNegocio("Este produto já foi encaminhado ao estoque.")
+        item.encaminhamento = EncaminhamentoEstoque(item.quantidade, datetime.now(), responsavel=self)
+        devolucao.registrarHistorico(
+            f"Encaminhamento ao estoque: {item.produto.nome} ({item.quantidade} un.)", self)
+        return item.encaminhamento
+
+    def abrirMediacao(self, devolucao, plataforma, protocolo):
+        verificar_aberta(devolucao)
+        if not devolucao.conferidaComercial:  # RN-06
+            raise ErroRegraNegocio("A devolução precisa ser conferida pelo Comercial antes da mediação.")
+        if not devolucao.possuiAvaria():  # RN-09
+            raise ErroRegraNegocio("Somente devoluções com produto Com Avaria podem ter mediação.")
+        if devolucao.mediacao is not None:
+            raise ErroRegraNegocio("Esta devolução já possui mediação.")
+        devolucao.mediacao = Mediacao(
+            validar_texto(plataforma, "plataforma"), validar_texto(protocolo, "protocolo"), date.today())
+        devolucao.atualizarStatus()  # RN-10
+        devolucao.registrarHistorico(
+            f"Mediação aberta na plataforma {devolucao.mediacao.plataforma} "
+            f"(protocolo {devolucao.mediacao.protocolo})", self)
+        return devolucao.mediacao
+
+    def registrarResultadoMediacao(self, devolucao, resultado):
+        verificar_aberta(devolucao)
+        if devolucao.mediacao is None:
+            raise ErroRegraNegocio("Esta devolução não possui mediação.")
+        devolucao.mediacao.registrarResultado(resultado)
+        devolucao.atualizarStatus()  # RN-11
+        devolucao.registrarHistorico(f"Resultado da mediação registrado: {resultado}", self)
+        if devolucao.status == STATUS_PERDAS:
+            devolucao.registrarHistorico("Devolução encerrada com status Perdas", self)
+
+    def finalizarDevolucao(self, devolucao):
+        verificar_aberta(devolucao)
+        pendencias = devolucao.listarPendencias()
+        if pendencias:  # RN-13
+            raise ErroRegraNegocio("Não é possível finalizar:\n  - " + "\n  - ".join(pendencias))
+        devolucao.status = STATUS_CONCLUIDA
+        devolucao.registrarHistorico("Devolução finalizada com status Concluída", self)
+
 
 def criar_usuario(perfil, nome, login, senhaHash, ativo=True, id=None):
     """Cria o objeto da subclasse correta de acordo com o perfil."""
@@ -182,6 +237,32 @@ class Devolucao:
         """RN-02, RN-04 e RN-05: pelo menos um produto, todos classificados e com evidências quando avariados."""
         return len(self.itens) > 0 and all(item.possuiEvidenciasObrigatorias() for item in self.itens)
 
+    def listarPendencias(self):
+        """Lista o que ainda falta para finalizar a devolução (RN-13)."""
+        pendencias = []
+        if not self.conferidaComercial:
+            pendencias.append("A devolução ainda não foi conferida pelo Comercial.")
+        for item in self.itens:
+            if item.situacao == SEM_AVARIA and not item.foiEncaminhado():
+                pendencias.append(f"O produto {item.produto.nome} (Sem Avaria) não foi encaminhado ao estoque.")
+        if self.possuiAvaria():
+            if self.mediacao is None:
+                pendencias.append("A devolução possui produto Com Avaria e não tem mediação registrada.")
+            elif self.mediacao.resultado != FAVORAVEL:
+                pendencias.append(f"A mediação está com resultado {self.mediacao.resultado}.")
+        return pendencias
+
+    def podeSerFinalizada(self):
+        return not self.estaEncerrada() and not self.listarPendencias()
+
+    def atualizarStatus(self):
+        """RN-10 e RN-11: o status acompanha a situação da mediação."""
+        if self.estaEncerrada() or self.mediacao is None:
+            return
+        if self.mediacao.resultado == RECUSADA:
+            self.status = STATUS_PERDAS
+        else:
+            self.status = STATUS_EM_ANDAMENTO
 
     def estaEncerrada(self):
         return self.status in (STATUS_CONCLUIDA, STATUS_PERDAS)
@@ -264,3 +345,31 @@ class RegistroHistorico:
         self.usuario = usuario  # associação com Usuario (realizado por)
 
 
+# ---------------------------------------------------------------- tratamento pelo Comercial
+class EncaminhamentoEstoque:
+    """Registra o encaminhamento ao estoque, sem alterar o saldo de estoque da empresa (RF-09)."""
+
+    def __init__(self, quantidade, dataHora, responsavel=None, id=None):
+        self.id = id
+        self.quantidade = quantidade
+        self.dataHora = dataHora
+        self.responsavel = responsavel  # UsuarioComercial que registrou
+
+
+class Mediacao:
+    def __init__(self, plataforma, protocolo, dataAbertura, resultado=PENDENTE, id=None):
+        self.id = id
+        self.plataforma = plataforma
+        self.protocolo = protocolo
+        self.dataAbertura = dataAbertura
+        self.resultado = resultado
+
+    def registrarResultado(self, resultado):
+        if not self.estaPendente():
+            raise ErroRegraNegocio(f"A mediação já possui resultado {self.resultado}.")
+        if resultado not in (FAVORAVEL, RECUSADA):
+            raise ErroRegraNegocio("O resultado deve ser Favorável ou Recusada.")
+        self.resultado = resultado
+
+    def estaPendente(self):
+        return self.resultado == PENDENTE
