@@ -102,6 +102,12 @@ class UsuarioProducao(Usuario):
     def obterPerfil(self):
         return PERFIL_PRODUCAO
 
+    def cadastrarDevolucao(self, numeroPedido, dataRecebimento):
+        numeroPedido = validar_texto(numeroPedido, "número do pedido")
+        if not isinstance(dataRecebimento, date):
+            raise ErroRegraNegocio("A data de recebimento é inválida.")
+        return Devolucao(numeroPedido, dataRecebimento, responsavel=self)
+
 
 class UsuarioComercial(Usuario):
     def obterPerfil(self):
@@ -136,5 +142,125 @@ class Produto:
 
     def desativar(self):
         self.ativo = False
+
+
+# ---------------------------------------------------------------- devolução
+def verificar_aberta(devolucao):
+    """RN-14: devoluções encerradas não podem ser alteradas."""
+    if devolucao.estaEncerrada():
+        raise ErroRegraNegocio(
+            f"A devolução está com status {devolucao.status} e não pode mais ser alterada.")
+
+
+class Devolucao:
+    def __init__(self, numeroPedido, dataRecebimento, responsavel=None,
+                 status=STATUS_EM_ABERTO, conferidaComercial=False, id=None):
+        self.id = id
+        self.numeroPedido = numeroPedido
+        self.dataRecebimento = dataRecebimento
+        self.status = status
+        self.conferidaComercial = conferidaComercial
+        self.responsavel = responsavel  # UsuarioProducao que cadastrou
+        self.itens = []                 # composição com ItemDevolucao
+        self.mediacao = None            # associação 0..1 com Mediacao
+        self.historico = []             # composição com RegistroHistorico
+
+    def adicionarItem(self, produto, quantidade):
+        verificar_aberta(self)
+        if produto is None or not produto.ativo:
+            raise ErroRegraNegocio("Produto não encontrado ou inativo.")
+        if not isinstance(quantidade, int) or quantidade <= 0:
+            raise ErroRegraNegocio("A quantidade deve ser maior que zero.")
+        item = ItemDevolucao(produto, quantidade, devolucao=self)
+        self.itens.append(item)
+        return item
+
+    def possuiAvaria(self):
+        return any(item.situacao == COM_AVARIA for item in self.itens)
+
+    def validarCadastro(self):
+        """RN-02, RN-04 e RN-05: pelo menos um produto, todos classificados e com evidências quando avariados."""
+        return len(self.itens) > 0 and all(item.possuiEvidenciasObrigatorias() for item in self.itens)
+
+
+    def estaEncerrada(self):
+        return self.status in (STATUS_CONCLUIDA, STATUS_PERDAS)
+
+    def registrarHistorico(self, acao, usuario):
+        """RF-13: guarda a ação, o usuário, a data e o horário."""
+        registro = RegistroHistorico(acao, datetime.now(), usuario=usuario)
+        self.historico.append(registro)
+        return registro
+
+
+class ItemDevolucao:
+    def __init__(self, produto, quantidade, devolucao=None, situacao=None, descricaoAvaria="", id=None):
+        self.id = id
+        self.produto = produto
+        self.quantidade = quantidade
+        self.situacao = situacao
+        self.descricaoAvaria = descricaoAvaria
+        self.devolucao = devolucao
+        self.evidencias = []        # composição com Evidencia
+        self.encaminhamento = None  # associação 0..1 com EncaminhamentoEstoque
+
+    def classificar(self, situacao, descricaoAvaria=""):
+        if situacao not in (SEM_AVARIA, COM_AVARIA):
+            raise ErroRegraNegocio("A situação deve ser Sem Avaria ou Com Avaria.")
+        if situacao == COM_AVARIA:
+            descricaoAvaria = validar_texto(descricaoAvaria, "descrição da avaria")
+        else:
+            descricaoAvaria = ""
+            self.evidencias = []
+        self.situacao = situacao
+        self.descricaoAvaria = descricaoAvaria
+
+    def adicionarEvidencia(self, tipo, caminhoArquivo):
+        if self.situacao != COM_AVARIA:
+            raise ErroRegraNegocio("Evidências só podem ser anexadas a produtos Com Avaria.")
+        evidencia = Evidencia(tipo, caminhoArquivo, datetime.now())
+        if not evidencia.validarArquivo():
+            extensoes, limite = REGRAS_ARQUIVO.get(tipo, ((), 0))
+            raise ErroRegraNegocio(
+                f"Arquivo inválido. {tipo} deve existir, ter extensão {', '.join(extensoes)} "
+                f"e no máximo {limite // (1024 * 1024)} MB.")
+        self.evidencias.append(evidencia)
+        return evidencia
+
+    def possuiEvidenciasObrigatorias(self):
+        """RN-05: produto Com Avaria precisa de descrição, ao menos uma foto e ao menos um vídeo."""
+        if self.situacao == SEM_AVARIA:
+            return True
+        if self.situacao != COM_AVARIA:
+            return False
+        tipos = [evidencia.tipo for evidencia in self.evidencias]
+        return bool(self.descricaoAvaria) and FOTO in tipos and VIDEO in tipos
+
+    def foiEncaminhado(self):
+        return self.encaminhamento is not None
+
+
+class Evidencia:
+    def __init__(self, tipo, caminhoArquivo, dataEnvio, id=None):
+        self.id = id
+        self.tipo = tipo
+        self.caminhoArquivo = caminhoArquivo
+        self.dataEnvio = dataEnvio
+
+    def validarArquivo(self):
+        """RNF-06: fotos JPG/PNG até 10 MB e vídeos MP4 até 100 MB."""
+        if self.tipo not in REGRAS_ARQUIVO or not os.path.isfile(self.caminhoArquivo):
+            return False
+        extensoes, limite = REGRAS_ARQUIVO[self.tipo]
+        extensao = os.path.splitext(self.caminhoArquivo)[1].lower()
+        return extensao in extensoes and os.path.getsize(self.caminhoArquivo) <= limite
+
+
+class RegistroHistorico:
+    def __init__(self, acao, dataHora, usuario=None, id=None):
+        self.id = id
+        self.acao = acao
+        self.dataHora = dataHora
+        self.usuario = usuario  # associação com Usuario (realizado por)
 
 
