@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block titulo %}Cadastrar devolução{% endblock %}
+{% block conteudo %}
+<h1>Cadastrar devolução</h1>
+
+<form method="post" enctype="multipart/form-data">
+    <div class="cartao">
+        <h2>Dados da devolução</h2>
+        <div class="campos">
+            <div class="campo">
+                <label for="pedido">Número do pedido</label>
+                <input id="pedido" name="pedido" value="{{ dados.pedido }}" {{ "readonly" if dados.itens }}>
+            </div>
+            <div class="campo">
+                <label for="data">Data de recebimento (DD/MM/AAAA)</label>
+                <input id="data" name="data" value="{{ dados.data }}" placeholder="DD/MM/AAAA" {{ "readonly" if dados.itens }}>
+            </div>
+        </div>
+    </div>
+
+    <div class="cartao">
+        <h2>Conferência do produto</h2>
+        <div class="campos">
+            <div class="campo">
+                <label for="produto">Produto</label>
+                <select id="produto" name="produto">
+                    <option value="">Selecione...</option>
+                    {% for p in produtos %}<option value="{{ p.codigo }}">{{ p.codigo }} - {{ p.nome }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="campo">
+                <label for="quantidade">Quantidade recebida</label>
+                <input id="quantidade" name="quantidade" type="number" min="1">
+            </div>
+            <div class="campo">
+                <label>Situação</label>
+                <div class="opcoes">
+                    {% for situacao in situacoes %}
+                    <label><input type="radio" name="situacao" value="{{ situacao }}" {{ "checked" if loop.first }}
+                                  onchange="mostrarAvaria()"> {{ situacao }}</label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="avaria" class="campos" style="margin-top: 14px">
+            <div class="campo largo">
+                <label for="descricao">Descrição da avaria</label>
+                <textarea id="descricao" name="descricao" rows="2"></textarea>
+            </div>
+            <div class="campo">
+                <label for="fotos">Fotos (JPG ou PNG, até 10 MB)</label>
+                <input id="fotos" name="fotos" type="file" accept=".jpg,.jpeg,.png" multiple>
+            </div>
+            <div class="campo">
+                <label for="videos">Vídeos (MP4, até 100 MB)</label>
+                <input id="videos" name="videos" type="file" accept=".mp4" multiple>
+            </div>
+        </div>
+
+        <div class="botoes">
+            <button class="secundario" name="acao" value="adicionar">Adicionar produto à devolução</button>
+        </div>
+    </div>
+</form>
+
+<div class="cartao">
+    <h2>Produtos da devolução</h2>
+    {% if dados.itens %}
+    <table>
+        <tr><th>Nº</th><th>Produto</th><th>Quantidade</th><th>Situação</th><th>Evidências</th></tr>
+        {% for item in dados.itens %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ item.codigo }} - {{ nomes[item.codigo] }}</td>
+            <td>{{ item.quantidade }}</td>
+            <td>{{ item.situacao }}</td>
+            <td>{{ item.evidencias | length }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="dica">Nenhum produto adicionado ainda.</p>
+    {% endif %}
+    <form method="post" class="botoes">
+        <button name="acao" value="confirmar"
+                onclick="return confirm('Confirmar o cadastro da devolução com {{ dados.itens | length }} produto(s)?')">
+            Confirmar cadastro</button>
+        <button class="secundario" name="acao" value="cancelar">Cancelar</button>
+    </form>
+</div>
+
+<script>
+    // Registrar Avaria e Evidências («extend»): os campos só aparecem para produto Com Avaria (RN-05)
+    function mostrarAvaria() {
+        const marcado = document.querySelector("input[name=situacao]:checked");
+        document.getElementById("avaria").style.display =
+            marcado && marcado.value === "{{ com_avaria }}" ? "flex" : "none";
+    }
+    mostrarAvaria();
+</script>
+{% endblock %}

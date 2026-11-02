@@ -3,19 +3,26 @@
 Execute com:  python main.py
 O navegador abre sozinho em http://127.0.0.1:5000
 """
+import os
+import tempfile
 import threading
 import webbrowser
+from datetime import datetime
 from functools import wraps
 
 from flask import Flask, flash, g, redirect, render_template, request, session, url_for
+from werkzeug.utils import secure_filename
 
 import banco
 from modelos import (
     ErroRegraNegocio, PERFIL_ADMINISTRADOR, PERFIL_PRODUCAO, PERFIL_COMERCIAL,
+    SEM_AVARIA, COM_AVARIA, FOTO, VIDEO,
 )
 
 app = Flask(__name__)
 app.secret_key = "sistema-devolucoes-uso-local"  # assina o cookie de sessão (sistema roda só no computador local)
+app.config["MAX_CONTENT_LENGTH"] = 250 * 1024 * 1024  # permite enviar vídeos de até 100 MB (RNF-06)
+PASTA_TEMPORARIA = os.path.join(tempfile.gettempdir(), "sistema-devolucoes")
 
 
 # ---------------------------------------------------------------- acesso e menu por perfil (RNF-02 e RN-12)
@@ -26,6 +33,8 @@ def opcoes_do_perfil(usuario):
     if perfil == PERFIL_ADMINISTRADOR:
         opcoes["Gerenciar usuários"] = "usuarios"
         opcoes["Gerenciar produtos"] = "produtos"
+    if perfil == PERFIL_PRODUCAO:
+        opcoes["Cadastrar devolução"] = "cadastrar_devolucao"
     return opcoes
 
 
@@ -51,6 +60,27 @@ def acesso(*perfis):
 def dados_do_menu():
     usuario = g.get("usuario")
     return {"usuario": usuario, "menu": opcoes_do_perfil(usuario) if usuario else {}}
+
+
+# ---------------------------------------------------------------- leitura dos campos (RNF-03)
+def ler_data(valor, obrigatorio=True):
+    """Converte uma data no formato DD/MM/AAAA."""
+    valor = (valor or "").strip()
+    if not valor:
+        if obrigatorio:
+            raise ErroRegraNegocio("Informe a data no formato DD/MM/AAAA.")
+        return None
+    try:
+        return datetime.strptime(valor, "%d/%m/%Y").date()
+    except ValueError:
+        raise ErroRegraNegocio(f"Data inválida: {valor}. Use o formato DD/MM/AAAA.")
+
+
+def ler_quantidade(valor):
+    valor = (valor or "").strip()
+    if not valor.isdigit() or int(valor) <= 0:
+        raise ErroRegraNegocio("A quantidade deve ser um número inteiro maior que zero.")
+    return int(valor)
 
 
 # ---------------------------------------------------------------- autenticação (RF-01)
@@ -150,6 +180,100 @@ def produtos():
     editando = request.args.get("editar")
     return render_template("produtos.html", produtos=banco.listar_produtos(),
                            editando=banco.buscar_produto_por_codigo(editando) if editando else None)
+
+
+# ---------------------------------------------------------------- Produção (RF-04, RF-05 e RF-06)
+def montar_devolucao(usuario, dados):
+    """Monta a devolução com os produtos já conferidos, aplicando as regras RN-02, RN-04 e RN-05."""
+    devolucao = usuario.cadastrarDevolucao(dados["pedido"], ler_data(dados["data"]))
+    for item_dados in dados["itens"]:
+        produto = banco.buscar_produto_por_codigo(item_dados["codigo"])
+        item = devolucao.adicionarItem(produto, ler_quantidade(item_dados["quantidade"]))
+        registrar_conferencia(item, item_dados)
+    return devolucao
+
+
+def registrar_conferencia(item, item_dados):
+    """Registrar Conferência dos Produtos («include» de Cadastrar Devolução)."""
+    if item_dados["situacao"] == COM_AVARIA:
+        registrar_avaria(item, item_dados)
+    else:
+        item.classificar(item_dados["situacao"])
+
+
+def registrar_avaria(item, item_dados):
+    """Registrar Avaria e Evidências («extend»): só ocorre para produto Com Avaria (RN-05)."""
+    item.classificar(COM_AVARIA, item_dados["descricao"])
+    for tipo, caminho in item_dados["evidencias"]:
+        item.adicionarEvidencia(tipo, caminho)
+    if not item.possuiEvidenciasObrigatorias():
+        raise ErroRegraNegocio("Produto Com Avaria precisa de descrição, pelo menos uma foto (JPG/PNG até 10 MB) "
+                               "e pelo menos um vídeo (MP4 até 100 MB).")
+
+
+def guardar_arquivos_enviados(campo, tipo):
+    """Guarda numa pasta temporária os arquivos enviados pelo navegador até a confirmação do cadastro."""
+    os.makedirs(PASTA_TEMPORARIA, exist_ok=True)
+    evidencias = []
+    for arquivo in request.files.getlist(campo):
+        if arquivo and arquivo.filename:
+            nome = datetime.now().strftime("%Y%m%d_%H%M%S_%f_") + secure_filename(arquivo.filename)
+            caminho = os.path.join(PASTA_TEMPORARIA, nome)
+            arquivo.save(caminho)
+            evidencias.append([tipo, caminho])
+    return evidencias
+
+
+@app.route("/devolucoes/nova", methods=["GET", "POST"])
+@acesso(PERFIL_PRODUCAO)
+def cadastrar_devolucao():
+    dados = session.get("nova_devolucao") or {"pedido": "", "data": "", "itens": []}
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        try:
+            if acao == "cancelar":
+                session.pop("nova_devolucao", None)
+                flash("Cadastro cancelado.", "sucesso")
+                return redirect(url_for("cadastrar_devolucao"))
+            if acao == "adicionar":
+                if not dados["itens"]:
+                    dados["pedido"] = request.form.get("pedido", "")
+                    dados["data"] = request.form.get("data", "")
+                novo = {"codigo": request.form.get("produto", ""), "quantidade": request.form.get("quantidade", ""),
+                        "situacao": request.form.get("situacao", ""), "descricao": request.form.get("descricao", ""),
+                        "evidencias": guardar_arquivos_enviados("fotos", FOTO) + guardar_arquivos_enviados("videos", VIDEO)}
+                if not novo["codigo"]:
+                    raise ErroRegraNegocio("Selecione o produto.")
+                montar_devolucao(g.usuario, {**dados, "itens": dados["itens"] + [novo]})  # valida antes de guardar
+                dados["itens"].append(novo)
+                session["nova_devolucao"] = dados
+                flash("Produto adicionado à devolução.", "sucesso")
+                return redirect(url_for("cadastrar_devolucao"))
+            if acao == "confirmar":
+                if not dados["itens"]:
+                    raise ErroRegraNegocio("Adicione pelo menos um produto conferido à devolução.")
+                devolucao = montar_devolucao(g.usuario, dados)
+                if not devolucao.validarCadastro():
+                    raise ErroRegraNegocio("Existem produtos sem classificação ou sem evidências.")
+                for item in devolucao.itens:
+                    for evidencia in item.evidencias:
+                        evidencia.caminhoArquivo = banco.copiar_evidencia(evidencia.caminhoArquivo)
+                devolucao.registrarHistorico(f"Devolução cadastrada com {len(devolucao.itens)} produto(s)", g.usuario)
+                for item in devolucao.itens:
+                    texto = f"Produto {item.produto.nome} classificado como {item.situacao}"
+                    if item.situacao == COM_AVARIA:
+                        texto += f" ({len(item.evidencias)} evidência(s) anexada(s))"
+                    devolucao.registrarHistorico(texto, g.usuario)
+                banco.salvar_devolucao(devolucao)
+                session.pop("nova_devolucao", None)
+                flash(f"Devolução nº {devolucao.id} cadastrada com status {devolucao.status}.", "sucesso")
+                return redirect(url_for("cadastrar_devolucao"))
+        except ErroRegraNegocio as erro:
+            flash(str(erro), "erro")
+    produtos_ativos = [p for p in banco.listar_produtos() if p.ativo]
+    nomes = {p.codigo: p.nome for p in banco.listar_produtos()}
+    return render_template("cadastrar_devolucao.html", dados=dados, produtos=produtos_ativos, nomes=nomes,
+                           situacoes=[SEM_AVARIA, COM_AVARIA], com_avaria=COM_AVARIA)
 
 
 def main():

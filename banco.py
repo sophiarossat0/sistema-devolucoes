@@ -5,14 +5,18 @@ Este módulo salva e carrega os objetos de modelos.py.
 import os
 import sqlite3
 from contextlib import contextmanager
+import shutil
+from datetime import date, datetime
 
 from modelos import (
     PERFIL_ADMINISTRADOR, ErroRegraNegocio, criar_usuario, gerar_hash,
     Produto,
+    Devolucao, ItemDevolucao, Evidencia, RegistroHistorico,
 )
 
 PASTA_PROJETO = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO_BANCO = os.path.join(PASTA_PROJETO, "devolucoes.db")
+PASTA_EVIDENCIAS = os.path.join(PASTA_PROJETO, "evidencias")
 
 SQL_TABELAS = """
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -191,5 +195,78 @@ def buscar_produto_por_id(id):
 def listar_produtos():
     with conectar() as conexao:
         return [_para_produto(l) for l in conexao.execute("SELECT * FROM produtos ORDER BY nome")]
+
+
+# ---------------------------------------------------------------- devoluções
+def copiar_evidencia(caminho_origem):
+    """Copia o arquivo de evidência para a pasta evidencias/ do sistema e devolve o novo caminho (RNF-06)."""
+    os.makedirs(PASTA_EVIDENCIAS, exist_ok=True)
+    nome = datetime.now().strftime("%Y%m%d_%H%M%S_%f_") + os.path.basename(caminho_origem)
+    destino = os.path.join(PASTA_EVIDENCIAS, nome)
+    shutil.copy2(caminho_origem, destino)
+    return destino
+
+
+def salvar_devolucao(devolucao):
+    """Salva a devolução e tudo o que pertence a ela em uma única transação."""
+    with conectar() as conexao:
+        if devolucao.id is None:
+            cursor = conexao.execute(
+                "INSERT INTO devolucoes (numero_pedido, data_recebimento, status, conferida_comercial, responsavel_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (devolucao.numeroPedido, devolucao.dataRecebimento.isoformat(), devolucao.status,
+                 int(devolucao.conferidaComercial), devolucao.responsavel.id))
+            devolucao.id = cursor.lastrowid
+        else:
+            conexao.execute(
+                "UPDATE devolucoes SET status = ?, conferida_comercial = ? WHERE id = ?",
+                (devolucao.status, int(devolucao.conferidaComercial), devolucao.id))
+
+        for item in devolucao.itens:
+            if item.id is None:
+                cursor = conexao.execute(
+                    "INSERT INTO itens_devolucao (devolucao_id, produto_id, quantidade, situacao, descricao_avaria) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (devolucao.id, item.produto.id, item.quantidade, item.situacao, item.descricaoAvaria))
+                item.id = cursor.lastrowid
+            for evidencia in item.evidencias:
+                if evidencia.id is None:
+                    cursor = conexao.execute(
+                        "INSERT INTO evidencias (item_id, tipo, caminho_arquivo, data_envio) VALUES (?, ?, ?, ?)",
+                        (item.id, evidencia.tipo, evidencia.caminhoArquivo, evidencia.dataEnvio.isoformat()))
+                    evidencia.id = cursor.lastrowid
+
+
+        for registro in devolucao.historico:
+            if registro.id is None:
+                cursor = conexao.execute(
+                    "INSERT INTO historico (devolucao_id, usuario_id, acao, data_hora) VALUES (?, ?, ?, ?)",
+                    (devolucao.id, registro.usuario.id, registro.acao, registro.dataHora.isoformat()))
+                registro.id = cursor.lastrowid
+
+
+def carregar_devolucao(id):
+    """Monta o objeto Devolucao completo (itens, evidências, mediação e histórico)."""
+    with conectar() as conexao:
+        linha = conexao.execute("SELECT * FROM devolucoes WHERE id = ?", (id,)).fetchone()
+        if linha is None:
+            return None
+        devolucao = Devolucao(linha["numero_pedido"], date.fromisoformat(linha["data_recebimento"]),
+                              buscar_usuario_por_id(linha["responsavel_id"]), linha["status"],
+                              bool(linha["conferida_comercial"]), linha["id"])
+
+        for l in conexao.execute("SELECT * FROM itens_devolucao WHERE devolucao_id = ? ORDER BY id", (id,)):
+            item = ItemDevolucao(buscar_produto_por_id(l["produto_id"]), l["quantidade"], devolucao,
+                                 l["situacao"], l["descricao_avaria"] or "", l["id"])
+            for e in conexao.execute("SELECT * FROM evidencias WHERE item_id = ? ORDER BY id", (item.id,)):
+                item.evidencias.append(Evidencia(e["tipo"], e["caminho_arquivo"],
+                                                 datetime.fromisoformat(e["data_envio"]), e["id"]))
+            devolucao.itens.append(item)
+
+
+        for h in conexao.execute("SELECT * FROM historico WHERE devolucao_id = ? ORDER BY id", (id,)):
+            devolucao.historico.append(RegistroHistorico(h["acao"], datetime.fromisoformat(h["data_hora"]),
+                                                         buscar_usuario_por_id(h["usuario_id"]), h["id"]))
+        return devolucao
 
 
