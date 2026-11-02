@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block titulo %}Gerenciar produtos{% endblock %}
+{% block conteudo %}
+<h1>Gerenciar produtos</h1>
+
+<form method="post" class="cartao">
+    <h2>{{ "Alterar produto" if editando else "Cadastrar produto" }}</h2>
+    <div class="campos">
+        <div class="campo">
+            <label for="codigo">Código</label>
+            <input id="codigo" name="codigo" value="{{ editando.codigo if editando }}" {{ "readonly" if editando }} required>
+        </div>
+        <div class="campo">
+            <label for="sku">SKU</label>
+            <input id="sku" name="sku" value="{{ editando.sku if editando }}" {{ "readonly" if editando }} required>
+        </div>
+        <div class="campo">
+            <label for="nome">Nome</label>
+            <input id="nome" name="nome" value="{{ editando.nome if editando }}" required>
+        </div>
+        <div class="campo">
+            <label for="categoria">Categoria</label>
+            <input id="categoria" name="categoria" value="{{ editando.categoria if editando }}" required>
+        </div>
+    </div>
+    <div class="botoes">
+        {% if editando %}
+            <button name="acao" value="alterar">Salvar alteração</button>
+            <a class="botao secundario" href="{{ url_for('produtos') }}">Cancelar</a>
+        {% else %}
+            <button name="acao" value="cadastrar">Cadastrar</button>
+        {% endif %}
+    </div>
+</form>
+
+<div class="cartao">
+    <h2>Produtos cadastrados</h2>
+    <table>
+        <tr><th>Código</th><th>SKU</th><th>Nome</th><th>Categoria</th><th>Situação</th><th></th></tr>
+        {% for p in produtos %}
+        <tr class="{{ 'selecionada' if editando and editando.codigo == p.codigo }}">
+            <td>{{ p.codigo }}</td>
+            <td>{{ p.sku }}</td>
+            <td>{{ p.nome }}</td>
+            <td>{{ p.categoria }}</td>
+            <td><span class="selo {{ 'Ativo' if p.ativo else 'Inativo' }}">{{ "Ativo" if p.ativo else "Inativo" }}</span></td>
+            <td>
+                <a class="botao secundario pequeno" href="{{ url_for('produtos', editar=p.codigo) }}">Alterar</a>
+                {% if p.ativo %}
+                <form method="post" onsubmit="return confirm('Desativar {{ p.nome }}?')">
+                    <input type="hidden" name="codigo" value="{{ p.codigo }}">
+                    <button class="secundario pequeno" name="acao" value="desativar">Desativar</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

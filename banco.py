@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 from modelos import (
     PERFIL_ADMINISTRADOR, ErroRegraNegocio, criar_usuario, gerar_hash,
+    Produto,
 )
 
 PASTA_PROJETO = os.path.dirname(os.path.abspath(__file__))
@@ -130,5 +131,65 @@ def buscar_usuario_por_login(login):
 def buscar_usuario_por_id(id):
     with conectar() as conexao:
         return _para_usuario(conexao.execute("SELECT * FROM usuarios WHERE id = ?", (id,)).fetchone())
+
+
+def listar_usuarios():
+    with conectar() as conexao:
+        return [_para_usuario(l) for l in conexao.execute("SELECT * FROM usuarios ORDER BY nome")]
+
+
+def salvar_usuario(usuario):
+    try:
+        with conectar() as conexao:
+            if usuario.id is None:
+                cursor = conexao.execute(
+                    "INSERT INTO usuarios (nome, login, senha_hash, perfil, ativo) VALUES (?, ?, ?, ?, ?)",
+                    (usuario.nome, usuario.login, usuario.senhaHash, usuario.obterPerfil(), int(usuario.ativo)))
+                usuario.id = cursor.lastrowid
+            else:
+                conexao.execute(
+                    "UPDATE usuarios SET nome = ?, login = ?, senha_hash = ?, ativo = ? WHERE id = ?",
+                    (usuario.nome, usuario.login, usuario.senhaHash, int(usuario.ativo), usuario.id))
+    except sqlite3.IntegrityError:
+        raise ErroRegraNegocio("Já existe um usuário com este login.")
+
+
+# ---------------------------------------------------------------- produtos
+def _para_produto(linha):
+    if linha is None:
+        return None
+    return Produto(linha["codigo"], linha["sku"], linha["nome"], linha["categoria"],
+                   bool(linha["ativo"]), linha["id"])
+
+
+def salvar_produto(produto):
+    try:
+        with conectar() as conexao:
+            if produto.id is None:
+                cursor = conexao.execute(
+                    "INSERT INTO produtos (codigo, sku, nome, categoria, ativo) VALUES (?, ?, ?, ?, ?)",
+                    (produto.codigo, produto.sku, produto.nome, produto.categoria, int(produto.ativo)))
+                produto.id = cursor.lastrowid
+            else:
+                conexao.execute(
+                    "UPDATE produtos SET sku = ?, nome = ?, categoria = ?, ativo = ? WHERE id = ?",
+                    (produto.sku, produto.nome, produto.categoria, int(produto.ativo), produto.id))
+    except sqlite3.IntegrityError:
+        raise ErroRegraNegocio("Já existe um produto com este código.")
+
+
+def buscar_produto_por_codigo(codigo):
+    with conectar() as conexao:
+        return _para_produto(conexao.execute("SELECT * FROM produtos WHERE codigo = ?", (codigo,)).fetchone())
+
+
+def buscar_produto_por_id(id):
+    with conectar() as conexao:
+        return _para_produto(conexao.execute("SELECT * FROM produtos WHERE id = ?", (id,)).fetchone())
+
+
+def listar_produtos():
+    with conectar() as conexao:
+        return [_para_produto(l) for l in conexao.execute("SELECT * FROM produtos ORDER BY nome")]
 
 

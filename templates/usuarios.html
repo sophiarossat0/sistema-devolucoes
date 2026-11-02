@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}Gerenciar usuários{% endblock %}
+{% block conteudo %}
+<h1>Gerenciar usuários</h1>
+
+<form method="post" class="cartao">
+    <h2>{{ "Alterar usuário" if editando else "Cadastrar usuário" }}</h2>
+    <div class="campos">
+        <div class="campo">
+            <label for="nome">Nome</label>
+            <input id="nome" name="nome" value="{{ editando.nome if editando }}" required>
+        </div>
+        <div class="campo">
+            <label for="login">Login</label>
+            <input id="login" name="login" value="{{ editando.login if editando }}" required>
+        </div>
+        {% if editando %}
+            <input type="hidden" name="id" value="{{ editando.id }}">
+            <div class="campo">
+                <label>Perfil</label>
+                <input value="{{ editando.obterPerfil() }}" readonly>
+            </div>
+        {% else %}
+            <div class="campo">
+                <label for="senha">Senha</label>
+                <input id="senha" name="senha" type="password" required>
+            </div>
+            <div class="campo">
+                <label for="perfil">Perfil</label>
+                <select id="perfil" name="perfil" required>
+                    <option value="">Selecione...</option>
+                    {% for perfil in perfis %}<option>{{ perfil }}</option>{% endfor %}
+                </select>
+            </div>
+        {% endif %}
+    </div>
+    <div class="botoes">
+        {% if editando %}
+            <button name="acao" value="alterar">Salvar alteração</button>
+            <a class="botao secundario" href="{{ url_for('usuarios') }}">Cancelar</a>
+        {% else %}
+            <button name="acao" value="cadastrar">Cadastrar</button>
+        {% endif %}
+    </div>
+</form>
+
+<div class="cartao">
+    <h2>Usuários cadastrados</h2>
+    <table>
+        <tr><th>ID</th><th>Nome</th><th>Login</th><th>Perfil</th><th>Situação</th><th></th></tr>
+        {% for u in usuarios %}
+        <tr class="{{ 'selecionada' if editando and editando.id == u.id }}">
+            <td>{{ u.id }}</td>
+            <td>{{ u.nome }}</td>
+            <td>{{ u.login }}</td>
+            <td>{{ u.obterPerfil() }}</td>
+            <td><span class="selo {{ 'Ativo' if u.ativo else 'Inativo' }}">{{ "Ativo" if u.ativo else "Inativo" }}</span></td>
+            <td>
+                <a class="botao secundario pequeno" href="{{ url_for('usuarios', editar=u.id) }}">Alterar</a>
+                {% if u.ativo %}
+                <form method="post" onsubmit="return confirm('Desativar {{ u.nome }}?')">
+                    <input type="hidden" name="id" value="{{ u.id }}">
+                    <button class="secundario pequeno" name="acao" value="desativar">Desativar</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}
