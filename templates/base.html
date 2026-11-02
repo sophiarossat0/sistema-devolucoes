@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titulo %}Início{% endblock %} - Sistema de Devoluções</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+</head>
+<body>
+{% macro mensagens() %}
+    {% for categoria, texto in get_flashed_messages(with_categories=true) %}
+        <div class="mensagem {{ categoria }}">{{ texto }}</div>
+    {% endfor %}
+{% endmacro %}
+
+{% if usuario %}
+    <header class="topo">
+        <span class="marca">Sistema de Gestão e Controle do Processo de Devoluções</span>
+        <span class="quem">{{ usuario.nome }} ({{ usuario.obterPerfil() }})</span>
+        <a class="botao claro" href="{{ url_for('sair') }}">Sair</a>
+    </header>
+    <div class="corpo">
+        <nav class="menu">
+            <a href="{{ url_for('inicio') }}" class="{{ 'ativo' if request.endpoint == 'inicio' }}">Início</a>
+            {% for nome, rota in menu.items() %}
+                <a href="{{ url_for(rota) }}" class="{{ 'ativo' if request.endpoint == rota }}">{{ nome }}</a>
+            {% endfor %}
+        </nav>
+        <main class="conteudo">
+            {{ mensagens() }}
+            {% block conteudo %}{% endblock %}
+        </main>
+    </div>
+{% else %}
+    <main class="login-pagina">
+        <div class="login-caixa">
+            {{ mensagens() }}
+            {% block login %}{% endblock %}
+        </div>
+    </main>
+{% endif %}
+</body>
+</html>

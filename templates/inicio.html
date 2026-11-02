@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h1>Bem-vindo(a), {{ usuario.nome }}!</h1>
+<div class="cartao">
+    <p>Você entrou com o perfil <strong>{{ usuario.obterPerfil() }}</strong>.</p>
+    <p class="dica">Escolha uma opção no menu ao lado.</p>
+</div>
+{% endblock %}
