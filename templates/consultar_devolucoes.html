@@ -63,6 +63,12 @@
     </div>
 </div>
 
+{% if pode_tratar %}
+<div class="cartao" id="tratamento">
+    {% include "_acoes_comercial.html" %}
+</div>
+{% endif %}
+
 {% if ver_historico %}
 <div class="cartao" id="historico">
     <h2>Histórico da devolução nº {{ devolucao.id }}</h2>

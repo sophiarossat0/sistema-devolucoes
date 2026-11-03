@@ -12,6 +12,7 @@ from modelos import (
     PERFIL_ADMINISTRADOR, ErroRegraNegocio, criar_usuario, gerar_hash,
     Produto,
     Devolucao, ItemDevolucao, Evidencia, RegistroHistorico,
+    EncaminhamentoEstoque,
 )
 
 PASTA_PROJETO = os.path.dirname(os.path.abspath(__file__))
@@ -235,6 +236,13 @@ def salvar_devolucao(devolucao):
                         "INSERT INTO evidencias (item_id, tipo, caminho_arquivo, data_envio) VALUES (?, ?, ?, ?)",
                         (item.id, evidencia.tipo, evidencia.caminhoArquivo, evidencia.dataEnvio.isoformat()))
                     evidencia.id = cursor.lastrowid
+            encaminhamento = item.encaminhamento
+            if encaminhamento is not None and encaminhamento.id is None:
+                cursor = conexao.execute(
+                    "INSERT INTO encaminhamentos (item_id, responsavel_id, quantidade, data_hora) VALUES (?, ?, ?, ?)",
+                    (item.id, encaminhamento.responsavel.id, encaminhamento.quantidade,
+                     encaminhamento.dataHora.isoformat()))
+                encaminhamento.id = cursor.lastrowid
 
 
         for registro in devolucao.historico:
@@ -261,6 +269,10 @@ def carregar_devolucao(id):
             for e in conexao.execute("SELECT * FROM evidencias WHERE item_id = ? ORDER BY id", (item.id,)):
                 item.evidencias.append(Evidencia(e["tipo"], e["caminho_arquivo"],
                                                  datetime.fromisoformat(e["data_envio"]), e["id"]))
+            e = conexao.execute("SELECT * FROM encaminhamentos WHERE item_id = ?", (item.id,)).fetchone()
+            if e is not None:
+                item.encaminhamento = EncaminhamentoEstoque(e["quantidade"], datetime.fromisoformat(e["data_hora"]),
+                                                            buscar_usuario_por_id(e["responsavel_id"]), e["id"])
             devolucao.itens.append(item)
 
 

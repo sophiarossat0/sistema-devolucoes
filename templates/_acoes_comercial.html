@@ -1,0 +1,45 @@
+{# Ações do Comercial sobre a devolução aberta na tela de detalhes (RN-12) #}
+<h2>Tratamento pelo Comercial</h2>
+{% if devolucao.estaEncerrada() %}
+    <p class="dica">Esta devolução está com status {{ devolucao.status }} e não pode mais ser alterada.</p>
+{% else %}
+    <h3>Conferir devolução</h3>
+    {% if devolucao.conferidaComercial %}
+        <p><span class="selo Ativo">Conferida</span> Os dados foram conferidos com a plataforma de origem.</p>
+    {% else %}
+    <form method="post" action="{{ url_for('conferir_devolucao', id=devolucao.id) }}"
+          onsubmit="return confirm('Os dados conferem com a plataforma de origem?')">
+        <p>Compare os dados acima com o pedido na plataforma de origem.</p>
+        <button>Registrar conferência</button>
+    </form>
+    {% endif %}
+
+    <h3>Encaminhamento ao estoque</h3>
+    {% if devolucao.conferidaComercial %}
+    <table>
+        <tr><th>Nº</th><th>Produto</th><th>Quantidade</th><th></th></tr>
+        {% for item in devolucao.itens if item.situacao != com_avaria %}
+        <tr>
+            <td>{{ devolucao.itens.index(item) + 1 }}</td>
+            <td>{{ item.produto.codigo }} - {{ item.produto.nome }}</td>
+            <td>{{ item.quantidade }}</td>
+            <td>
+                {% if item.foiEncaminhado() %}
+                    <span class="selo Ativo">Encaminhado</span>
+                {% else %}
+                <form method="post" action="{{ url_for('registrar_encaminhamento', id=devolucao.id) }}">
+                    <input type="hidden" name="item" value="{{ devolucao.itens.index(item) + 1 }}">
+                    <button class="pequeno">Registrar encaminhamento</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="dica">Esta devolução não tem produtos Sem Avaria.</td></tr>
+        {% endfor %}
+    </table>
+    <p class="dica">O sistema registra o encaminhamento, mas não altera o saldo de estoque da empresa.</p>
+    {% else %}
+        <p class="dica">Disponível depois da conferência da devolução (RN-06).</p>
+    {% endif %}
+{% endif %}

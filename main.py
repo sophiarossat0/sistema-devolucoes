@@ -304,7 +304,8 @@ def consultar_devolucoes():
     return render_template("consultar_devolucoes.html", filtros=filtros, devolucoes=devolucoes, devolucao=devolucao,
                            ver_historico=request.args.get("historico") == "1",  # «extend» Consultar Histórico
                            status=[STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS],
-                           com_avaria=COM_AVARIA, foto=FOTO)
+                           com_avaria=COM_AVARIA, foto=FOTO,
+                           pode_tratar=devolucao is not None and g.usuario.obterPerfil() == PERFIL_COMERCIAL)
 
 
 @app.route("/evidencias/<path:nome>")
@@ -312,6 +313,43 @@ def consultar_devolucoes():
 def ver_evidencia(nome):
     """Permite consultar as fotos e os vídeos das devoluções (RNF-06)."""
     return send_from_directory(banco.PASTA_EVIDENCIAS, nome)
+
+
+# ---------------------------------------------------------------- Comercial (RF-08 e RF-09)
+def acao_do_comercial(id, acao):
+    """Executa uma ação do Comercial sobre a devolução e volta para a tela de detalhes dela."""
+    devolucao = banco.carregar_devolucao(id)
+    if devolucao is None:
+        flash("Devolução não encontrada.", "erro")
+        return redirect(url_for("consultar_devolucoes"))
+    try:
+        mensagem = acao(devolucao)
+        banco.salvar_devolucao(devolucao)
+        flash(mensagem, "sucesso")
+    except ErroRegraNegocio as erro:
+        flash(str(erro), "erro")
+    return redirect(url_for("consultar_devolucoes", id=id, _anchor="tratamento"))
+
+
+@app.route("/devolucoes/<int:id>/conferir", methods=["POST"])
+@acesso(PERFIL_COMERCIAL)
+def conferir_devolucao(id):
+    def conferir(devolucao):
+        g.usuario.conferirDevolucao(devolucao)
+        return "Conferência registrada."
+    return acao_do_comercial(id, conferir)
+
+
+@app.route("/devolucoes/<int:id>/encaminhamento", methods=["POST"])
+@acesso(PERFIL_COMERCIAL)
+def registrar_encaminhamento(id):
+    def encaminhar(devolucao):
+        posicao = request.form.get("item", "")
+        if not posicao.isdigit() or not 1 <= int(posicao) <= len(devolucao.itens):
+            raise ErroRegraNegocio("Produto inválido.")
+        g.usuario.registrarEncaminhamento(devolucao.itens[int(posicao) - 1])
+        return "Encaminhamento ao estoque registrado (o saldo de estoque não é alterado)."
+    return acao_do_comercial(id, encaminhar)
 
 
 def main():
