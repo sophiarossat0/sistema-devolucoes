@@ -270,3 +270,35 @@ def carregar_devolucao(id):
         return devolucao
 
 
+def pesquisar_devolucoes(numero_pedido="", status="", codigo_produto="", data_inicio=None, data_fim=None):
+    """RF-07: pesquisa devoluções por pedido, status, produto e período de recebimento."""
+    sql = "SELECT DISTINCT d.id FROM devolucoes d " \
+          "LEFT JOIN itens_devolucao i ON i.devolucao_id = d.id " \
+          "LEFT JOIN produtos p ON p.id = i.produto_id WHERE 1 = 1"
+    parametros = []
+    if numero_pedido:
+        sql += " AND d.numero_pedido LIKE ?"
+        parametros.append(f"%{numero_pedido}%")
+    if status:
+        sql += " AND d.status = ?"
+        parametros.append(status)
+    if codigo_produto:
+        sql += " AND p.codigo = ?"
+        parametros.append(codigo_produto)
+    if data_inicio:
+        sql += " AND d.data_recebimento >= ?"
+        parametros.append(data_inicio.isoformat())
+    if data_fim:
+        sql += " AND d.data_recebimento <= ?"
+        parametros.append(data_fim.isoformat())
+    sql += " ORDER BY d.id"
+    with conectar() as conexao:
+        ids = [linha["id"] for linha in conexao.execute(sql, parametros)]
+    return [carregar_devolucao(id) for id in ids]
+
+
+def contar_devolucoes_por_status():
+    """Conta quantas devoluções existem em cada status, para o painel da tela de Início."""
+    with conectar() as conexao:
+        return {linha["status"]: linha["total"] for linha in
+                conexao.execute("SELECT status, COUNT(*) AS total FROM devolucoes GROUP BY status")}

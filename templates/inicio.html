@@ -1,8 +1,18 @@
 {% extends "base.html" %}
 {% block conteudo %}
 <h1>Bem-vindo(a), {{ usuario.nome }}!</h1>
-<div class="cartao">
-    <p>Você entrou com o perfil <strong>{{ usuario.obterPerfil() }}</strong>.</p>
-    <p class="dica">Escolha uma opção no menu ao lado.</p>
+<p class="dica">Você entrou com o perfil <strong>{{ usuario.obterPerfil() }}</strong>. Escolha uma opção no menu ao lado.</p>
+
+<div class="cartao" style="margin-top: 16px">
+    <h2>Situação das devoluções</h2>
+    <div class="painel">
+        {% for status, total in painel.items() %}
+        <a class="indicador {{ status | replace(' ', '-') }}" href="{{ url_for('consultar_devolucoes', status=status) }}">
+            <span class="numero">{{ total }}</span>
+            <span class="nome">{{ status }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    <p class="dica">Total: {{ painel.values() | sum }} devolução(ões). Clique em um status para ver as devoluções.</p>
 </div>
 {% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block titulo %}Consultar devoluções{% endblock %}
+{% block conteudo %}
+<h1>Consultar devoluções</h1>
+
+<form method="get" class="cartao">
+    <h2>Filtros <span class="dica">(deixe em branco para ignorar)</span></h2>
+    <div class="campos">
+        <div class="campo">
+            <label for="pedido">Número do pedido</label>
+            <input id="pedido" name="pedido" value="{{ filtros.pedido }}">
+        </div>
+        <div class="campo">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="">Todos</option>
+                {% for s in status %}<option {{ "selected" if filtros.status == s }}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="campo">
+            <label for="produto">Código do produto</label>
+            <input id="produto" name="produto" value="{{ filtros.produto }}">
+        </div>
+        <div class="campo">
+            <label for="inicio">Recebidas a partir de</label>
+            <input id="inicio" name="inicio" value="{{ filtros.inicio }}" placeholder="DD/MM/AAAA">
+        </div>
+        <div class="campo">
+            <label for="fim">Recebidas até</label>
+            <input id="fim" name="fim" value="{{ filtros.fim }}" placeholder="DD/MM/AAAA">
+        </div>
+        <button>Pesquisar</button>
+    </div>
+</form>
+
+<div class="cartao">
+    <h2>Devoluções encontradas</h2>
+    {% if devolucoes %}
+    <table>
+        <tr><th>Nº</th><th>Pedido</th><th>Recebimento</th><th>Produtos</th><th>Status</th><th></th></tr>
+        {% for d in devolucoes %}
+        <tr class="{{ 'selecionada' if devolucao and devolucao.id == d.id }}">
+            <td>{{ d.id }}</td>
+            <td>{{ d.numeroPedido }}</td>
+            <td>{{ d.dataRecebimento.strftime("%d/%m/%Y") }}</td>
+            <td>{{ d.itens | length }}</td>
+            <td><span class="selo {{ d.status | replace(' ', '-') }}">{{ d.status }}</span></td>
+            <td><a class="botao secundario pequeno" href="{{ url_for('consultar_devolucoes', id=d.id, _anchor='detalhes', **filtros) }}">Ver detalhes</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="dica">Nenhuma devolução encontrada.</p>
+    {% endif %}
+</div>
+
+{% if devolucao %}
+<div class="cartao" id="detalhes">
+    <h2>Detalhes da devolução</h2>
+    {% include "_devolucao.html" %}
+    <div class="botoes">
+        <a class="botao secundario" href="{{ url_for('consultar_devolucoes', id=devolucao.id, historico=1, _anchor='historico', **filtros) }}">Consultar histórico</a>
+    </div>
+</div>
+
+{% if ver_historico %}
+<div class="cartao" id="historico">
+    <h2>Histórico da devolução nº {{ devolucao.id }}</h2>
+    <table>
+        <tr><th>Data e hora</th><th>Usuário</th><th>Ação</th></tr>
+        {% for registro in devolucao.historico %}
+        <tr>
+            <td>{{ registro.dataHora.strftime("%d/%m/%Y %H:%M:%S") }}</td>
+            <td>{{ registro.usuario.nome }}</td>
+            <td>{{ registro.acao }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

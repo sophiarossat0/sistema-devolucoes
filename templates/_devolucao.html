@@ -1,0 +1,47 @@
+{# Resumo de uma devolução: dados, produtos, avarias com evidências e mediação #}
+<div class="resumo">
+    <span><strong>Devolução nº</strong>{{ devolucao.id }}</span>
+    <span><strong>Pedido</strong>{{ devolucao.numeroPedido }}</span>
+    <span><strong>Recebida em</strong>{{ devolucao.dataRecebimento.strftime("%d/%m/%Y") }}</span>
+    <span><strong>Status</strong><span class="selo {{ devolucao.status | replace(' ', '-') }}">{{ devolucao.status }}</span></span>
+    <span><strong>Conferida pelo Comercial</strong>{{ "Sim" if devolucao.conferidaComercial else "Não" }}</span>
+</div>
+
+<table>
+    <tr><th>Nº</th><th>Produto</th><th>Quantidade</th><th>Situação</th><th>Encaminhado ao estoque</th></tr>
+    {% for item in devolucao.itens %}
+    <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ item.produto.codigo }} - {{ item.produto.nome }}</td>
+        <td>{{ item.quantidade }}</td>
+        <td>{{ item.situacao }}</td>
+        <td>{{ "Sim" if item.foiEncaminhado() else "Não" }}</td>
+    </tr>
+    {% if item.situacao == com_avaria %}
+    <tr>
+        <td></td>
+        <td colspan="4">
+            <strong>Avaria:</strong> {{ item.descricaoAvaria }}
+            <div class="evidencias">
+                {% for evidencia in item.evidencias %}
+                    {% set endereco = url_for('ver_evidencia', nome=evidencia.caminhoArquivo | nome_arquivo) %}
+                    {% if evidencia.tipo == foto %}
+                        <a href="{{ endereco }}" target="_blank"><img src="{{ endereco }}" alt="Foto da avaria"></a>
+                    {% else %}
+                        <video src="{{ endereco }}" controls></video>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+</table>
+
+{% if devolucao.mediacao %}
+<p style="margin-top: 14px">
+    <strong>Mediação:</strong> {{ devolucao.mediacao.plataforma }} · protocolo {{ devolucao.mediacao.protocolo }} ·
+    aberta em {{ devolucao.mediacao.dataAbertura.strftime("%d/%m/%Y") }} ·
+    resultado <span class="selo">{{ devolucao.mediacao.resultado }}</span>
+</p>
+{% endif %}

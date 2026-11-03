@@ -11,12 +11,14 @@ from datetime import datetime
 from functools import wraps
 
 from flask import Flask, flash, g, redirect, render_template, request, session, url_for
+from flask import send_from_directory
 from werkzeug.utils import secure_filename
 
 import banco
 from modelos import (
     ErroRegraNegocio, PERFIL_ADMINISTRADOR, PERFIL_PRODUCAO, PERFIL_COMERCIAL,
     SEM_AVARIA, COM_AVARIA, FOTO, VIDEO,
+    STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS,
 )
 
 app = Flask(__name__)
@@ -35,6 +37,7 @@ def opcoes_do_perfil(usuario):
         opcoes["Gerenciar produtos"] = "produtos"
     if perfil == PERFIL_PRODUCAO:
         opcoes["Cadastrar devolução"] = "cadastrar_devolucao"
+    opcoes["Consultar devoluções"] = "consultar_devolucoes"
     return opcoes
 
 
@@ -83,6 +86,11 @@ def ler_quantidade(valor):
     return int(valor)
 
 
+@app.template_filter("nome_arquivo")
+def nome_arquivo(caminho):
+    return os.path.basename(caminho)
+
+
 # ---------------------------------------------------------------- autenticação (RF-01)
 @app.route("/")
 def raiz():
@@ -111,7 +119,11 @@ def sair():
 @app.route("/inicio")
 @acesso()
 def inicio():
-    return render_template("inicio.html")
+    """Painel com a quantidade de devoluções em cada status (RF-11), visto por todos os perfis."""
+    totais = banco.contar_devolucoes_por_status()
+    painel = {status: totais.get(status, 0)
+              for status in (STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS)}
+    return render_template("inicio.html", painel=painel)
 
 
 # ---------------------------------------------------------------- Administrador (RF-02 e RF-03)
@@ -274,6 +286,32 @@ def cadastrar_devolucao():
     nomes = {p.codigo: p.nome for p in banco.listar_produtos()}
     return render_template("cadastrar_devolucao.html", dados=dados, produtos=produtos_ativos, nomes=nomes,
                            situacoes=[SEM_AVARIA, COM_AVARIA], com_avaria=COM_AVARIA)
+
+
+# ---------------------------------------------------------------- consultas (RF-07 e RF-14)
+@app.route("/devolucoes")
+@acesso()
+def consultar_devolucoes():
+    filtros = {campo: request.args.get(campo, "").strip() for campo in ("pedido", "status", "produto", "inicio", "fim")}
+    devolucoes, devolucao = [], None
+    try:
+        devolucoes = banco.pesquisar_devolucoes(filtros["pedido"], filtros["status"], filtros["produto"],
+                                                ler_data(filtros["inicio"], False), ler_data(filtros["fim"], False))
+    except ErroRegraNegocio as erro:
+        flash(str(erro), "erro")
+    if request.args.get("id", "").isdigit():
+        devolucao = banco.carregar_devolucao(int(request.args["id"]))
+    return render_template("consultar_devolucoes.html", filtros=filtros, devolucoes=devolucoes, devolucao=devolucao,
+                           ver_historico=request.args.get("historico") == "1",  # «extend» Consultar Histórico
+                           status=[STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS],
+                           com_avaria=COM_AVARIA, foto=FOTO)
+
+
+@app.route("/evidencias/<path:nome>")
+@acesso()
+def ver_evidencia(nome):
+    """Permite consultar as fotos e os vídeos das devoluções (RNF-06)."""
+    return send_from_directory(banco.PASTA_EVIDENCIAS, nome)
 
 
 def main():
