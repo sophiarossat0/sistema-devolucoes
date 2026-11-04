@@ -13,6 +13,7 @@ from modelos import (
     Produto,
     Devolucao, ItemDevolucao, Evidencia, RegistroHistorico,
     EncaminhamentoEstoque,
+    Mediacao,
 )
 
 PASTA_PROJETO = os.path.dirname(os.path.abspath(__file__))
@@ -244,6 +245,17 @@ def salvar_devolucao(devolucao):
                      encaminhamento.dataHora.isoformat()))
                 encaminhamento.id = cursor.lastrowid
 
+        mediacao = devolucao.mediacao
+        if mediacao is not None:
+            if mediacao.id is None:
+                cursor = conexao.execute(
+                    "INSERT INTO mediacoes (devolucao_id, plataforma, protocolo, data_abertura, resultado) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (devolucao.id, mediacao.plataforma, mediacao.protocolo,
+                     mediacao.dataAbertura.isoformat(), mediacao.resultado))
+                mediacao.id = cursor.lastrowid
+            else:
+                conexao.execute("UPDATE mediacoes SET resultado = ? WHERE id = ?", (mediacao.resultado, mediacao.id))
 
         for registro in devolucao.historico:
             if registro.id is None:
@@ -275,6 +287,10 @@ def carregar_devolucao(id):
                                                             buscar_usuario_por_id(e["responsavel_id"]), e["id"])
             devolucao.itens.append(item)
 
+        m = conexao.execute("SELECT * FROM mediacoes WHERE devolucao_id = ?", (id,)).fetchone()
+        if m is not None:
+            devolucao.mediacao = Mediacao(m["plataforma"], m["protocolo"], date.fromisoformat(m["data_abertura"]),
+                                          m["resultado"], m["id"])
 
         for h in conexao.execute("SELECT * FROM historico WHERE devolucao_id = ? ORDER BY id", (id,)):
             devolucao.historico.append(RegistroHistorico(h["acao"], datetime.fromisoformat(h["data_hora"]),

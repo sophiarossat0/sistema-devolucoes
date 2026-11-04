@@ -42,4 +42,54 @@
     {% else %}
         <p class="dica">Disponível depois da conferência da devolução (RN-06).</p>
     {% endif %}
+
+    {% if devolucao.possuiAvaria() %}
+    <h3>Mediação</h3>
+    {% if not devolucao.conferidaComercial %}
+        <p class="dica">Disponível depois da conferência da devolução (RN-06).</p>
+    {% elif devolucao.mediacao is none %}
+    <form method="post" action="{{ url_for('gerenciar_mediacao', id=devolucao.id) }}">
+        <div class="campos">
+            <div class="campo">
+                <label for="plataforma">Plataforma</label>
+                <input id="plataforma" name="plataforma">
+            </div>
+            <div class="campo">
+                <label for="protocolo">Protocolo</label>
+                <input id="protocolo" name="protocolo">
+            </div>
+            <button>Registrar mediação</button>
+        </div>
+    </form>
+    {% elif devolucao.mediacao.estaPendente() %}
+    <form method="post" action="{{ url_for('gerenciar_mediacao', id=devolucao.id) }}"
+          onsubmit="return confirm('Confirmar o resultado? Se for Recusada, a devolução será encerrada como Perdas.')">
+        <div class="campos">
+            <div class="campo">
+                <label for="resultado">Resultado</label>
+                <select id="resultado" name="resultado">
+                    <option value="">Selecione...</option>
+                    {% for r in resultados %}<option>{{ r }}</option>{% endfor %}
+                </select>
+            </div>
+            <button>Registrar resultado</button>
+        </div>
+    </form>
+    {% else %}
+        <p>Resultado registrado: <span class="selo">{{ devolucao.mediacao.resultado }}</span></p>
+    {% endif %}
+    {% endif %}
+
+    <h3>Finalizar devolução</h3>
+    <form method="post" action="{{ url_for('finalizar_devolucao', id=devolucao.id) }}"
+          onsubmit="return confirm('Confirmar a finalização da devolução?')">
+        {% set pendencias = devolucao.listarPendencias() %}
+        {% if pendencias %}
+            <p>Ainda falta (RN-13):</p>
+            <ul>{% for pendencia in pendencias %}<li>{{ pendencia }}</li>{% endfor %}</ul>
+        {% else %}
+            <p>Todas as condições foram atendidas. A devolução já pode ser finalizada.</p>
+        {% endif %}
+        <button>Finalizar devolução</button>
+    </form>
 {% endif %}

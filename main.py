@@ -19,6 +19,7 @@ from modelos import (
     ErroRegraNegocio, PERFIL_ADMINISTRADOR, PERFIL_PRODUCAO, PERFIL_COMERCIAL,
     SEM_AVARIA, COM_AVARIA, FOTO, VIDEO,
     STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS,
+    FAVORAVEL, RECUSADA,
 )
 
 app = Flask(__name__)
@@ -350,6 +351,36 @@ def registrar_encaminhamento(id):
         g.usuario.registrarEncaminhamento(devolucao.itens[int(posicao) - 1])
         return "Encaminhamento ao estoque registrado (o saldo de estoque não é alterado)."
     return acao_do_comercial(id, encaminhar)
+
+
+# ---------------------------------------------------------------- Comercial (RF-10 e RF-12)
+@app.route("/devolucoes/<int:id>/mediacao", methods=["POST"])
+@acesso(PERFIL_COMERCIAL)
+def gerenciar_mediacao(id):
+    def registrar(devolucao):
+        if devolucao.mediacao is None:
+            g.usuario.abrirMediacao(devolucao, request.form.get("plataforma"), request.form.get("protocolo"))
+            return f"Mediação registrada. Status da devolução: {devolucao.status}."
+        resultado = request.form.get("resultado", "")
+        if not resultado:
+            raise ErroRegraNegocio("Selecione o resultado da mediação.")
+        g.usuario.registrarResultadoMediacao(devolucao, resultado)
+        return f"Resultado registrado. Status da devolução: {devolucao.status}."
+    return acao_do_comercial(id, registrar)
+
+
+@app.context_processor
+def resultados_da_mediacao():
+    return {"resultados": [FAVORAVEL, RECUSADA]}
+
+
+@app.route("/devolucoes/<int:id>/finalizar", methods=["POST"])
+@acesso(PERFIL_COMERCIAL)
+def finalizar_devolucao(id):
+    def finalizar(devolucao):
+        g.usuario.finalizarDevolucao(devolucao)
+        return "Devolução finalizada com status Concluída."
+    return acao_do_comercial(id, finalizar)
 
 
 def main():
