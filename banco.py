@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS produtos (
 CREATE TABLE IF NOT EXISTS devolucoes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     numero_pedido TEXT NOT NULL,
+    plataforma TEXT NOT NULL DEFAULT '',
     data_recebimento TEXT NOT NULL,
     status TEXT NOT NULL,
     conferida_comercial INTEGER NOT NULL DEFAULT 0,
@@ -104,6 +105,10 @@ def conectar():
 def criar_tabelas():
     with conectar() as conexao:
         conexao.executescript(SQL_TABELAS)
+        # Bancos criados antes da plataforma existir ganham a coluna nova
+        colunas = [linha["name"] for linha in conexao.execute("PRAGMA table_info(devolucoes)")]
+        if "plataforma" not in colunas:
+            conexao.execute("ALTER TABLE devolucoes ADD COLUMN plataforma TEXT NOT NULL DEFAULT ''")
 
 
 def criar_admin_padrao():
@@ -214,9 +219,9 @@ def salvar_devolucao(devolucao):
     with conectar() as conexao:
         if devolucao.id is None:
             cursor = conexao.execute(
-                "INSERT INTO devolucoes (numero_pedido, data_recebimento, status, conferida_comercial, responsavel_id) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (devolucao.numeroPedido, devolucao.dataRecebimento.isoformat(), devolucao.status,
+                "INSERT INTO devolucoes (numero_pedido, plataforma, data_recebimento, status, conferida_comercial, "
+                "responsavel_id) VALUES (?, ?, ?, ?, ?, ?)",
+                (devolucao.numeroPedido, devolucao.plataforma, devolucao.dataRecebimento.isoformat(), devolucao.status,
                  int(devolucao.conferidaComercial), devolucao.responsavel.id))
             devolucao.id = cursor.lastrowid
         else:
@@ -271,7 +276,7 @@ def carregar_devolucao(id):
         linha = conexao.execute("SELECT * FROM devolucoes WHERE id = ?", (id,)).fetchone()
         if linha is None:
             return None
-        devolucao = Devolucao(linha["numero_pedido"], date.fromisoformat(linha["data_recebimento"]),
+        devolucao = Devolucao(linha["numero_pedido"], linha["plataforma"], date.fromisoformat(linha["data_recebimento"]),
                               buscar_usuario_por_id(linha["responsavel_id"]), linha["status"],
                               bool(linha["conferida_comercial"]), linha["id"])
 

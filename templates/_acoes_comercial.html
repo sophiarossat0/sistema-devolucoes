@@ -52,7 +52,9 @@
         <div class="campos">
             <div class="campo">
                 <label for="plataforma">Plataforma</label>
-                <input id="plataforma" name="plataforma">
+                <select id="plataforma" name="plataforma">
+                    {% for p in plataformas %}<option {{ "selected" if devolucao.plataforma == p }}>{{ p }}</option>{% endfor %}
+                </select>
             </div>
             <div class="campo">
                 <label for="protocolo">Protocolo</label>

@@ -37,11 +37,12 @@
     <h2>Devoluções encontradas</h2>
     {% if devolucoes %}
     <table>
-        <tr><th>Nº</th><th>Pedido</th><th>Recebimento</th><th>Produtos</th><th>Status</th><th></th></tr>
+        <tr><th>Nº</th><th>Pedido</th><th>Plataforma</th><th>Recebimento</th><th>Produtos</th><th>Status</th><th></th></tr>
         {% for d in devolucoes %}
         <tr>
             <td>{{ d.id }}</td>
             <td>{{ d.numeroPedido }}</td>
+            <td>{{ d.plataforma or "-" }}</td>
             <td>{{ d.dataRecebimento.strftime("%d/%m/%Y") }}</td>
             <td>{{ d.itens | length }}</td>
             <td><span class="selo {{ d.status | replace(' ', '-') }}">{{ d.status }}</span></td>

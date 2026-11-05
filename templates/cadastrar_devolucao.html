@@ -12,6 +12,17 @@
                 <input id="pedido" name="pedido" value="{{ dados.pedido }}" {{ "readonly" if dados.itens }}>
             </div>
             <div class="campo">
+                <label for="plataforma">Plataforma</label>
+                {% if dados.itens %}
+                    <input id="plataforma" name="plataforma" value="{{ dados.plataforma }}" readonly>
+                {% else %}
+                <select id="plataforma" name="plataforma">
+                    <option value="">Selecione...</option>
+                    {% for p in plataformas %}<option {{ "selected" if dados.plataforma == p }}>{{ p }}</option>{% endfor %}
+                </select>
+                {% endif %}
+            </div>
+            <div class="campo">
                 <label for="data">Data de recebimento (DD/MM/AAAA)</label>
                 <input id="data" name="data" value="{{ dados.data }}" placeholder="DD/MM/AAAA" {{ "readonly" if dados.itens }}>
             </div>

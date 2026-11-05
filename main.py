@@ -19,7 +19,7 @@ from modelos import (
     ErroRegraNegocio, PERFIL_ADMINISTRADOR, PERFIL_PRODUCAO, PERFIL_COMERCIAL,
     SEM_AVARIA, COM_AVARIA, FOTO, VIDEO,
     STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS,
-    FAVORAVEL, RECUSADA,
+    FAVORAVEL, RECUSADA, PLATAFORMAS,
 )
 
 app = Flask(__name__)
@@ -198,7 +198,7 @@ def produtos():
 # ---------------------------------------------------------------- Produção (RF-04, RF-05 e RF-06)
 def montar_devolucao(usuario, dados):
     """Monta a devolução com os produtos já conferidos, aplicando as regras RN-02, RN-04 e RN-05."""
-    devolucao = usuario.cadastrarDevolucao(dados["pedido"], ler_data(dados["data"]))
+    devolucao = usuario.cadastrarDevolucao(dados["pedido"], dados.get("plataforma", ""), ler_data(dados["data"]))
     for item_dados in dados["itens"]:
         produto = banco.buscar_produto_por_codigo(item_dados["codigo"])
         item = devolucao.adicionarItem(produto, ler_quantidade(item_dados["quantidade"]))
@@ -240,7 +240,7 @@ def guardar_arquivos_enviados(campo, tipo):
 @app.route("/devolucoes/nova", methods=["GET", "POST"])
 @acesso(PERFIL_PRODUCAO)
 def cadastrar_devolucao():
-    dados = session.get("nova_devolucao") or {"pedido": "", "data": "", "itens": []}
+    dados = session.get("nova_devolucao") or {"pedido": "", "plataforma": "", "data": "", "itens": []}
     if request.method == "POST":
         acao = request.form.get("acao")
         try:
@@ -251,6 +251,7 @@ def cadastrar_devolucao():
             if acao == "adicionar":
                 if not dados["itens"]:
                     dados["pedido"] = request.form.get("pedido", "")
+                    dados["plataforma"] = request.form.get("plataforma", "")
                     dados["data"] = request.form.get("data", "")
                 novo = {"codigo": request.form.get("produto", ""), "quantidade": request.form.get("quantidade", ""),
                         "situacao": request.form.get("situacao", ""), "descricao": request.form.get("descricao", ""),
@@ -271,7 +272,8 @@ def cadastrar_devolucao():
                 for item in devolucao.itens:
                     for evidencia in item.evidencias:
                         evidencia.caminhoArquivo = banco.copiar_evidencia(evidencia.caminhoArquivo)
-                devolucao.registrarHistorico(f"Devolução cadastrada com {len(devolucao.itens)} produto(s)", g.usuario)
+                devolucao.registrarHistorico(f"Devolução cadastrada com {len(devolucao.itens)} produto(s), "
+                                     f"plataforma {devolucao.plataforma}", g.usuario)
                 for item in devolucao.itens:
                     texto = f"Produto {item.produto.nome} classificado como {item.situacao}"
                     if item.situacao == COM_AVARIA:
@@ -286,7 +288,8 @@ def cadastrar_devolucao():
     produtos_ativos = [p for p in banco.listar_produtos() if p.ativo]
     nomes = {p.codigo: p.nome for p in banco.listar_produtos()}
     return render_template("cadastrar_devolucao.html", dados=dados, produtos=produtos_ativos, nomes=nomes,
-                           situacoes=[SEM_AVARIA, COM_AVARIA], com_avaria=COM_AVARIA)
+                           situacoes=[SEM_AVARIA, COM_AVARIA], com_avaria=COM_AVARIA,
+                           plataformas=PLATAFORMAS)
 
 
 # ---------------------------------------------------------------- consultas (RF-07 e RF-14)
@@ -314,7 +317,7 @@ def detalhar_devolucao(id):
         return redirect(url_for("consultar_devolucoes"))
     return render_template("detalhes_devolucao.html", devolucao=devolucao,
                            ver_historico=request.args.get("historico") == "1",  # «extend» Consultar Histórico
-                           com_avaria=COM_AVARIA, foto=FOTO,
+                           com_avaria=COM_AVARIA, foto=FOTO, plataformas=PLATAFORMAS,
                            pode_tratar=g.usuario.obterPerfil() == PERFIL_COMERCIAL)
 
 

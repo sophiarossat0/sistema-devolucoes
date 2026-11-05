@@ -2,6 +2,7 @@
 <div class="resumo">
     <span><strong>Devolução nº</strong>{{ devolucao.id }}</span>
     <span><strong>Pedido</strong>{{ devolucao.numeroPedido }}</span>
+    <span><strong>Plataforma</strong>{{ devolucao.plataforma or "Não informada" }}</span>
     <span><strong>Recebida em</strong>{{ devolucao.dataRecebimento.strftime("%d/%m/%Y") }}</span>
     <span><strong>Status</strong><span class="selo {{ devolucao.status | replace(' ', '-') }}">{{ devolucao.status }}</span></span>
     <span><strong>Conferida pelo Comercial</strong>{{ "Sim" if devolucao.conferidaComercial else "Não" }}</span>

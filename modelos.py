@@ -31,6 +31,9 @@ REGRAS_ARQUIVO = {
     VIDEO: ((".mp4",), 100 * 1024 * 1024),
 }
 
+# Plataformas de origem das devoluções
+PLATAFORMAS = ["Mercado Livre", "Shopee", "Amazon", "Magazine Luiza", "Outra"]
+
 # Resultado da mediação (RF-10)
 PENDENTE = "Pendente"
 FAVORAVEL = "Favorável"
@@ -102,11 +105,13 @@ class UsuarioProducao(Usuario):
     def obterPerfil(self):
         return PERFIL_PRODUCAO
 
-    def cadastrarDevolucao(self, numeroPedido, dataRecebimento):
+    def cadastrarDevolucao(self, numeroPedido, plataforma, dataRecebimento):
         numeroPedido = validar_texto(numeroPedido, "número do pedido")
+        if plataforma not in PLATAFORMAS:
+            raise ErroRegraNegocio("Selecione a plataforma de origem da devolução.")
         if not isinstance(dataRecebimento, date):
             raise ErroRegraNegocio("A data de recebimento é inválida.")
-        return Devolucao(numeroPedido, dataRecebimento, responsavel=self)
+        return Devolucao(numeroPedido, plataforma, dataRecebimento, responsavel=self)
 
 
 class UsuarioComercial(Usuario):
@@ -208,10 +213,11 @@ def verificar_aberta(devolucao):
 
 
 class Devolucao:
-    def __init__(self, numeroPedido, dataRecebimento, responsavel=None,
+    def __init__(self, numeroPedido, plataforma, dataRecebimento, responsavel=None,
                  status=STATUS_EM_ABERTO, conferidaComercial=False, id=None):
         self.id = id
         self.numeroPedido = numeroPedido
+        self.plataforma = plataforma  # plataforma de origem do pedido (marketplace)
         self.dataRecebimento = dataRecebimento
         self.status = status
         self.conferidaComercial = conferidaComercial
