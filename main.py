@@ -294,19 +294,28 @@ def cadastrar_devolucao():
 @acesso()
 def consultar_devolucoes():
     filtros = {campo: request.args.get(campo, "").strip() for campo in ("pedido", "status", "produto", "inicio", "fim")}
-    devolucoes, devolucao = [], None
+    devolucoes = []
     try:
         devolucoes = banco.pesquisar_devolucoes(filtros["pedido"], filtros["status"], filtros["produto"],
                                                 ler_data(filtros["inicio"], False), ler_data(filtros["fim"], False))
     except ErroRegraNegocio as erro:
         flash(str(erro), "erro")
-    if request.args.get("id", "").isdigit():
-        devolucao = banco.carregar_devolucao(int(request.args["id"]))
-    return render_template("consultar_devolucoes.html", filtros=filtros, devolucoes=devolucoes, devolucao=devolucao,
+    return render_template("consultar_devolucoes.html", filtros=filtros, devolucoes=devolucoes,
+                           status=[STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS])
+
+
+@app.route("/devolucoes/<int:id>")
+@acesso()
+def detalhar_devolucao(id):
+    """Tela de detalhes da devolução, aberta em uma nova aba a partir da consulta."""
+    devolucao = banco.carregar_devolucao(id)
+    if devolucao is None:
+        flash("Devolução não encontrada.", "erro")
+        return redirect(url_for("consultar_devolucoes"))
+    return render_template("detalhes_devolucao.html", devolucao=devolucao,
                            ver_historico=request.args.get("historico") == "1",  # «extend» Consultar Histórico
-                           status=[STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS],
                            com_avaria=COM_AVARIA, foto=FOTO,
-                           pode_tratar=devolucao is not None and g.usuario.obterPerfil() == PERFIL_COMERCIAL)
+                           pode_tratar=g.usuario.obterPerfil() == PERFIL_COMERCIAL)
 
 
 @app.route("/evidencias/<path:nome>")
@@ -329,7 +338,7 @@ def acao_do_comercial(id, acao):
         flash(mensagem, "sucesso")
     except ErroRegraNegocio as erro:
         flash(str(erro), "erro")
-    return redirect(url_for("consultar_devolucoes", id=id, _anchor="tratamento"))
+    return redirect(url_for("detalhar_devolucao", id=id, _anchor="tratamento"))
 
 
 @app.route("/devolucoes/<int:id>/conferir", methods=["POST"])

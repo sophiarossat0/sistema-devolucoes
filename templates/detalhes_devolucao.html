@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Devolução nº {{ devolucao.id }}{% endblock %}
+{% block conteudo %}
+<h1>Devolução nº {{ devolucao.id }}</h1>
+
+<div class="cartao" id="detalhes">
+    <h2>Detalhes da devolução</h2>
+    {% include "_devolucao.html" %}
+    <div class="botoes">
+        <a class="botao secundario" href="{{ url_for('detalhar_devolucao', id=devolucao.id, historico=1, _anchor='historico') }}">Consultar histórico</a>
+        <a class="botao secundario" href="{{ url_for('consultar_devolucoes') }}">Voltar para a consulta</a>
+    </div>
+</div>
+
+{% if pode_tratar %}
+<div class="cartao" id="tratamento">
+    {% include "_acoes_comercial.html" %}
+</div>
+{% endif %}
+
+{% if ver_historico %}
+<div class="cartao" id="historico">
+    <h2>Histórico da devolução nº {{ devolucao.id }}</h2>
+    <table>
+        <tr><th>Data e hora</th><th>Usuário</th><th>Ação</th></tr>
+        {% for registro in devolucao.historico %}
+        <tr>
+            <td>{{ registro.dataHora.strftime("%d/%m/%Y %H:%M:%S") }}</td>
+            <td>{{ registro.usuario.nome }}</td>
+            <td>{{ registro.acao }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+{% endblock %}

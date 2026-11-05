@@ -39,13 +39,14 @@
     <table>
         <tr><th>Nº</th><th>Pedido</th><th>Recebimento</th><th>Produtos</th><th>Status</th><th></th></tr>
         {% for d in devolucoes %}
-        <tr class="{{ 'selecionada' if devolucao and devolucao.id == d.id }}">
+        <tr>
             <td>{{ d.id }}</td>
             <td>{{ d.numeroPedido }}</td>
             <td>{{ d.dataRecebimento.strftime("%d/%m/%Y") }}</td>
             <td>{{ d.itens | length }}</td>
             <td><span class="selo {{ d.status | replace(' ', '-') }}">{{ d.status }}</span></td>
-            <td><a class="botao secundario pequeno" href="{{ url_for('consultar_devolucoes', id=d.id, _anchor='detalhes', **filtros) }}">Ver detalhes</a></td>
+            <td><a class="botao secundario pequeno" href="{{ url_for('detalhar_devolucao', id=d.id) }}" target="_blank"
+                   rel="noopener" title="Abre os detalhes em uma nova aba">Ver detalhes</a></td>
         </tr>
         {% endfor %}
     </table>
@@ -54,35 +55,4 @@
     {% endif %}
 </div>
 
-{% if devolucao %}
-<div class="cartao" id="detalhes">
-    <h2>Detalhes da devolução</h2>
-    {% include "_devolucao.html" %}
-    <div class="botoes">
-        <a class="botao secundario" href="{{ url_for('consultar_devolucoes', id=devolucao.id, historico=1, _anchor='historico', **filtros) }}">Consultar histórico</a>
-    </div>
-</div>
-
-{% if pode_tratar %}
-<div class="cartao" id="tratamento">
-    {% include "_acoes_comercial.html" %}
-</div>
-{% endif %}
-
-{% if ver_historico %}
-<div class="cartao" id="historico">
-    <h2>Histórico da devolução nº {{ devolucao.id }}</h2>
-    <table>
-        <tr><th>Data e hora</th><th>Usuário</th><th>Ação</th></tr>
-        {% for registro in devolucao.historico %}
-        <tr>
-            <td>{{ registro.dataHora.strftime("%d/%m/%Y %H:%M:%S") }}</td>
-            <td>{{ registro.usuario.nome }}</td>
-            <td>{{ registro.acao }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-</div>
-{% endif %}
-{% endif %}
 {% endblock %}
