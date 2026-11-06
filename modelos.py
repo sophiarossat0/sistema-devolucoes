@@ -277,7 +277,6 @@ class Devolucao:
         """RF-13: guarda a ação, o usuário, a data e o horário."""
         registro = RegistroHistorico(acao, datetime.now(), usuario=usuario)
         self.historico.append(registro)
-        return registro
 
 
 class ItemDevolucao:
