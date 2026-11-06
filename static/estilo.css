@@ -314,3 +314,54 @@ td form { display: inline; }
     border: 1px dashed var(--borda-forte);
 }
 .adicionar-item:hover { background: #f9fafb; color: var(--texto); border-color: var(--texto-suave); }
+
+/* ---------- detalhes e análise comercial ---------- */
+.topo-devolucao { display: flex; align-items: center; gap: 14px; }
+.topo-devolucao h1 { display: flex; align-items: center; gap: 10px; }
+.topo-devolucao .sub { display: flex; flex-wrap: wrap; gap: 18px; margin: 6px 0 0; color: var(--texto-suave); font-size: 13px; }
+.voltar.caixa { border: 1px solid var(--borda-forte); width: 34px; height: 34px; border-radius: 8px; }
+.cartoes-resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+.cartao.mini { display: flex; align-items: center; gap: 12px; margin: 0; padding: 14px 16px; }
+.cartao.mini small { display: block; color: var(--texto-suave); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.cartao.mini strong { display: block; margin-top: 2px; }
+.cartao.mini div > small:last-child:not(:first-child) { text-transform: none; letter-spacing: 0; margin-top: 2px; }
+.icone { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; font-size: 16px; flex-shrink: 0; }
+.icone.azul { background: #eff6ff; } .icone.roxo { background: #f5f3ff; } .icone.vermelho { background: var(--erro); color: var(--erro-texto); } .icone.cinza { background: #f3f4f6; }
+.duas-colunas { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.lista-produtos { list-style: none; margin: 0; padding: 0; }
+.lista-produtos li { display: flex; flex-direction: column; gap: 4px; padding: 14px 0; border-top: 1px solid var(--borda); }
+.lista-produtos li:first-child { border-top: none; padding-top: 4px; }
+.produto-linha { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 2px; }
+.avaria-texto { margin: 6px 0 0; }
+.midias-titulo { margin: 8px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--erro-texto); }
+.evidencias img, .evidencias video { max-height: 110px; max-width: 180px; }
+.mediacao-info { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--borda); }
+.lista-resumo { display: grid; grid-template-columns: auto 1fr; margin: 0; }
+.lista-resumo dt, .lista-resumo dd { padding: 10px 0; border-top: 1px solid var(--borda); margin: 0; }
+.lista-resumo dt:first-of-type, .lista-resumo dt:first-of-type + dd { border-top: none; }
+.lista-resumo dt { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--texto-suave); }
+.lista-resumo dd { text-align: right; }
+.lista-resumo .verde { color: var(--sucesso-texto); font-weight: 600; }
+.lista-resumo .vermelho { color: var(--erro-texto); font-weight: 600; }
+.linha-tempo { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--borda); }
+.linha-tempo li { position: relative; padding: 0 0 14px 6px; display: flex; flex-direction: column; gap: 2px; }
+.linha-tempo li::before { content: ""; position: absolute; left: -25px; top: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--primaria); border: 2px solid #fff; }
+.linha-tempo small { color: var(--texto-suave); }
+.pergunta { padding: 14px 0; border-top: 1px solid var(--borda); }
+.pergunta:first-of-type { border-top: none; padding-top: 4px; }
+.pergunta p { margin: 0; }
+.rotulo { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--texto-suave); margin: 0 0 8px !important; }
+.alternar.pequeno { max-width: 240px; }
+.alternar.pequeno label { padding: 6px 10px; }
+.alternar .opcao-nao-neutra.marcada { background: #f3f4f6; border-color: var(--texto-suave); }
+.pendencias { margin-top: 6px; padding: 12px 14px; border-radius: var(--raio); background: var(--aviso); color: var(--aviso-texto); }
+.pendencias ul { margin: 0; padding-left: 18px; }
+.pendencias.ok { background: var(--sucesso); color: var(--sucesso-texto); }
+.pendencias p { margin: 0; }
+button.concluir { background: #059669; border-color: #059669; }
+button.concluir:hover { background: #047857; border-color: #047857; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 960px) {
+    .duas-colunas { grid-template-columns: 1fr; }
+    .cartoes-resumo { grid-template-columns: repeat(2, 1fr); }
+}

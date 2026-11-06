@@ -352,7 +352,7 @@ def ver_evidencia(nome):
     return send_from_directory(banco.PASTA_EVIDENCIAS, nome)
 
 
-# ---------------------------------------------------------------- Comercial (RF-08 e RF-09)
+# ---------------------------------------------------------------- Comercial
 def acao_do_comercial(id, acao):
     """Executa uma ação do Comercial sobre a devolução e volta para a tela de detalhes dela."""
     devolucao = banco.carregar_devolucao(id)
@@ -368,41 +368,36 @@ def acao_do_comercial(id, acao):
     return redirect(url_for("detalhar_devolucao", id=id, _anchor="tratamento"))
 
 
-@app.route("/devolucoes/<int:id>/conferir", methods=["POST"])
+# ---------------------------------------------------------------- Análise Comercial (RF-08, RF-09, RF-10 e RF-12)
+@app.route("/devolucoes/<int:id>/analise", methods=["POST"])
 @acesso(PERFIL_COMERCIAL)
-def conferir_devolucao(id):
-    def conferir(devolucao):
-        g.usuario.conferirDevolucao(devolucao)
-        return "Conferência registrada."
-    return acao_do_comercial(id, conferir)
+def salvar_analise(id):
+    """Registra, nesta ordem, a conferência (RF-08), a entrada no estoque (RF-09) e a mediação (RF-10).
 
-
-@app.route("/devolucoes/<int:id>/encaminhamento", methods=["POST"])
-@acesso(PERFIL_COMERCIAL)
-def registrar_encaminhamento(id):
-    def encaminhar(devolucao):
-        posicao = request.form.get("item", "")
-        if not posicao.isdigit() or not 1 <= int(posicao) <= len(devolucao.itens):
-            raise ErroRegraNegocio("Produto inválido.")
-        g.usuario.registrarEncaminhamento(devolucao.itens[int(posicao) - 1])
-        return "Encaminhamento ao estoque registrado (o saldo de estoque não é alterado)."
-    return acao_do_comercial(id, encaminhar)
-
-
-# ---------------------------------------------------------------- Comercial (RF-10 e RF-12)
-@app.route("/devolucoes/<int:id>/mediacao", methods=["POST"])
-@acesso(PERFIL_COMERCIAL)
-def gerenciar_mediacao(id):
-    def registrar(devolucao):
-        if devolucao.mediacao is None:
-            g.usuario.abrirMediacao(devolucao, request.form.get("plataforma"), request.form.get("protocolo"))
-            return f"Mediação registrada. Status da devolução: {devolucao.status}."
-        resultado = request.form.get("resultado", "")
-        if not resultado:
-            raise ErroRegraNegocio("Selecione o resultado da mediação.")
-        g.usuario.registrarResultadoMediacao(devolucao, resultado)
-        return f"Resultado registrado. Status da devolução: {devolucao.status}."
-    return acao_do_comercial(id, registrar)
+    As regras ficam nas classes: estoque e mediação antes da conferência são recusados (RN-06),
+    só produtos Sem Avaria vão ao estoque (RN-07) e só devoluções com avaria têm mediação (RN-09).
+    """
+    def analisar(devolucao):
+        feito = []
+        if request.form.get("conferida") == "sim" and not devolucao.conferidaComercial:
+            g.usuario.conferirDevolucao(devolucao)
+            feito.append("Conferência registrada.")
+        if request.form.get("estoque") == "sim":
+            for item in devolucao.itens:
+                if item.situacao == SEM_AVARIA and not item.foiEncaminhado():
+                    g.usuario.registrarEncaminhamento(item)
+            feito.append("Entrada no estoque registrada (o saldo de estoque não é alterado).")
+        if request.form.get("mediacao") == "sim":
+            if devolucao.mediacao is None:
+                g.usuario.abrirMediacao(devolucao, request.form.get("plataforma"), request.form.get("protocolo"))
+                feito.append(f"Mediação registrada. Status da devolução: {devolucao.status}.")
+            elif request.form.get("resultado"):
+                g.usuario.registrarResultadoMediacao(devolucao, request.form.get("resultado"))
+                feito.append(f"Resultado da mediação registrado. Status da devolução: {devolucao.status}.")
+        if not feito:
+            raise ErroRegraNegocio("Nenhuma resposta Sim foi marcada: não há nada novo para salvar.")
+        return " ".join(feito)
+    return acao_do_comercial(id, analisar)
 
 
 @app.context_processor

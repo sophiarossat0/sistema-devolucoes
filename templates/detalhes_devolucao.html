@@ -1,40 +1,86 @@
 {% extends "base.html" %}
 {% block titulo %}Devolução {{ devolucao.id | codigo }}{% endblock %}
 {% block conteudo %}
-<div class="cabecalho">
-    <a class="voltar" href="{{ url_for('consultar_devolucoes') }}" title="Voltar para a consulta">&larr;</a>
-    <h1>Devolução nº {{ devolucao.id }} <span class="contador">{{ devolucao.id | codigo }}</span></h1>
-    <span class="selo {{ devolucao.status | replace(' ', '-') }}">{{ devolucao.status }}</span>
-</div>
+{% set avariados = devolucao.itens | selectattr("situacao", "equalto", com_avaria) | list %}
+{% set unidades = devolucao.itens | sum(attribute="quantidade") %}
 
-<div class="cartao" id="detalhes">
-    <h2>Detalhes da devolução</h2>
-    {% include "_devolucao.html" %}
-    <div class="botoes">
-        <a class="botao secundario" href="{{ url_for('detalhar_devolucao', id=devolucao.id, historico=1, _anchor='historico') }}">Consultar histórico</a>
-        <a class="botao secundario" href="{{ url_for('consultar_devolucoes') }}">Voltar para a consulta</a>
+<div class="cartao topo-devolucao" id="detalhes">
+    <a class="voltar caixa" href="{{ url_for('consultar_devolucoes') }}" title="Voltar para a consulta">&larr;</a>
+    <div>
+        <h1>{{ devolucao.id | codigo }}
+            <span class="selo {{ devolucao.status | replace(' ', '-') }}">{{ devolucao.status }}</span></h1>
+        <p class="sub">
+            <span># Pedido {{ devolucao.numeroPedido }}</span>
+            <span>&#127978; {{ devolucao.plataforma or "Plataforma não informada" }}</span>
+            <span class="suave">Devolução nº {{ devolucao.id }}</span>
+        </p>
     </div>
 </div>
 
-{% if pode_tratar %}
-<div class="cartao" id="tratamento">
-    {% include "_acoes_comercial.html" %}
+<div class="cartoes-resumo">
+    <div class="cartao mini"><span class="icone azul">&#128197;</span>
+        <div><small>Data de recebimento</small><strong>{{ devolucao.dataRecebimento.strftime("%d/%m/%Y") }}</strong></div></div>
+    <div class="cartao mini"><span class="icone roxo">&#128230;</span>
+        <div><small>Total de itens</small><strong>{{ unidades }} unidade(s)</strong></div></div>
+    <div class="cartao mini"><span class="icone vermelho">&#9888;</span>
+        <div><small>Avariados</small><strong>{{ avariados | length }} item(ns)</strong></div></div>
+    <div class="cartao mini"><span class="icone cinza">&#128100;</span>
+        <div><small>Registrado por</small><strong>{{ devolucao.responsavel.nome }}</strong>
+            {% if devolucao.historico %}<small>{{ devolucao.historico[0].dataHora.strftime("%d/%m/%Y, %H:%M") }}</small>{% endif %}</div></div>
 </div>
-{% endif %}
 
-{% if ver_historico %}
-<div class="cartao" id="historico">
-    <h2>Histórico da devolução nº {{ devolucao.id }}</h2>
-    <table>
-        <tr><th>Data e hora</th><th>Usuário</th><th>Ação</th></tr>
-        {% for registro in devolucao.historico %}
-        <tr>
-            <td>{{ registro.dataHora.strftime("%d/%m/%Y %H:%M:%S") }}</td>
-            <td>{{ registro.usuario.nome }}</td>
-            <td>{{ registro.acao }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+<div class="duas-colunas">
+    <div>
+        <div class="cartao">
+            <div class="cabecalho-secao">
+                <div>
+                    <h2>Produtos Recebidos</h2>
+                    <p class="dica" style="margin: 2px 0 0">{{ devolucao.itens | length }} produto(s) · {{ unidades }} unidade(s)</p>
+                </div>
+                {% if avariados %}<span class="selo Perdas">&#9888; {{ avariados | length }} avariado(s)</span>{% endif %}
+            </div>
+            {% include "_devolucao.html" %}
+        </div>
+
+        {% if pode_tratar %}
+        <div class="cartao" id="tratamento">
+            {% include "_acoes_comercial.html" %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div>
+        <div class="cartao">
+            <h2>Resumo</h2>
+            <dl class="lista-resumo">
+                <dt>Status</dt><dd><span class="selo {{ devolucao.status | replace(' ', '-') }}">{{ devolucao.status }}</span></dd>
+                <dt>Plataforma</dt><dd>{{ devolucao.plataforma or "Não informada" }}</dd>
+                <dt>Pedido</dt><dd>{{ devolucao.numeroPedido }}</dd>
+                <dt>Conferida pelo Comercial</dt><dd>{{ "Sim" if devolucao.conferidaComercial else "Não" }}</dd>
+                <dt>Bom estado</dt><dd class="verde">{{ (devolucao.itens | length) - (avariados | length) }} item(ns)</dd>
+                <dt>Avariados</dt><dd class="vermelho">{{ avariados | length }} item(ns)</dd>
+                <dt>Mediação</dt><dd>{% if devolucao.mediacao %}<span class="selo {{ devolucao.mediacao.resultado }}">{{ devolucao.mediacao.resultado }}</span>{% else %}-{% endif %}</dd>
+            </dl>
+        </div>
+
+        <div class="cartao" id="historico">
+            <h2>Histórico</h2>
+            {% if ver_historico %}
+            {# Consultar Histórico da Devolução («extend»): aparece quando o usuário escolhe ver (RF-14) #}
+            <ol class="linha-tempo">
+                {% for registro in devolucao.historico | reverse %}
+                <li>
+                    <strong>{{ registro.acao }}</strong>
+                    <small>{{ registro.usuario.nome }} · {{ registro.dataHora.strftime("%d/%m/%Y, %H:%M:%S") }}</small>
+                </li>
+                {% endfor %}
+            </ol>
+            {% else %}
+            <p class="dica" style="margin: 0 0 12px">{{ devolucao.historico | length }} ação(ões) registrada(s).</p>
+            <a class="botao secundario" href="{{ url_for('detalhar_devolucao', id=devolucao.id, historico=1, _anchor='historico') }}">Consultar histórico</a>
+            {% endif %}
+        </div>
+        <a class="botao secundario" style="width: 100%; justify-content: center" href="{{ url_for('consultar_devolucoes') }}">Voltar para a consulta</a>
+    </div>
 </div>
-{% endif %}
 {% endblock %}

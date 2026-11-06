@@ -1,48 +1,37 @@
-{# Resumo de uma devolução: dados, produtos, avarias com evidências e mediação #}
-<div class="resumo">
-    <span><strong>Devolução nº</strong>{{ devolucao.id }}</span>
-    <span><strong>Pedido</strong>{{ devolucao.numeroPedido }}</span>
-    <span><strong>Plataforma</strong>{{ devolucao.plataforma or "Não informada" }}</span>
-    <span><strong>Recebida em</strong>{{ devolucao.dataRecebimento.strftime("%d/%m/%Y") }}</span>
-    <span><strong>Status</strong><span class="selo {{ devolucao.status | replace(' ', '-') }}">{{ devolucao.status }}</span></span>
-    <span><strong>Conferida pelo Comercial</strong>{{ "Sim" if devolucao.conferidaComercial else "Não" }}</span>
-</div>
-
-<table>
-    <tr><th>Nº</th><th>Produto</th><th>Quantidade</th><th>Situação</th><th>Encaminhado ao estoque</th></tr>
+{# Produtos da devolução: situação, avaria com evidências e encaminhamento ao estoque #}
+<ul class="lista-produtos">
     {% for item in devolucao.itens %}
-    <tr>
-        <td>{{ loop.index }}</td>
-        <td>{{ item.produto.codigo }} - {{ item.produto.nome }}</td>
-        <td>{{ item.quantidade }}</td>
-        <td>{{ item.situacao }}</td>
-        <td>{{ "Sim" if item.foiEncaminhado() else "Não" }}</td>
-    </tr>
-    {% if item.situacao == com_avaria %}
-    <tr>
-        <td></td>
-        <td colspan="4">
-            <strong>Avaria:</strong> {{ item.descricaoAvaria }}
-            <div class="evidencias">
-                {% for evidencia in item.evidencias %}
-                    {% set endereco = url_for('ver_evidencia', nome=evidencia.caminhoArquivo | nome_arquivo) %}
-                    {% if evidencia.tipo == foto %}
-                        <a href="{{ endereco }}" target="_blank"><img src="{{ endereco }}" alt="Foto da avaria"></a>
-                    {% else %}
-                        <video src="{{ endereco }}" controls></video>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </td>
-    </tr>
-    {% endif %}
+    <li>
+        <div class="produto-linha">
+            <span class="selo">{{ item.produto.codigo }}</span>
+            {% if item.situacao == com_avaria %}<span class="selo Perdas">&#9888; Avariado</span>
+            {% else %}<span class="selo Concluída">&#10003; Sem Avaria</span>{% endif %}
+            {% if item.foiEncaminhado() %}<span class="selo Em-Aberto">Encaminhado ao estoque</span>{% endif %}
+        </div>
+        <strong>{{ item.produto.nome }}</strong>
+        <small class="suave">SKU {{ item.produto.sku }} · Quantidade: {{ item.quantidade }}</small>
+        {% if item.situacao == com_avaria %}
+        <p class="avaria-texto"><strong>Avaria:</strong> {{ item.descricaoAvaria }}</p>
+        <p class="midias-titulo">&#128247; Mídias da avaria ({{ item.evidencias | length }})</p>
+        <div class="evidencias">
+            {% for evidencia in item.evidencias %}
+                {% set endereco = url_for('ver_evidencia', nome=evidencia.caminhoArquivo | nome_arquivo) %}
+                {% if evidencia.tipo == foto %}
+                    <a href="{{ endereco }}" target="_blank"><img src="{{ endereco }}" alt="Foto da avaria"></a>
+                {% else %}
+                    <video src="{{ endereco }}" controls></video>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </li>
     {% endfor %}
-</table>
+</ul>
 
 {% if devolucao.mediacao %}
-<p style="margin-top: 14px">
+<p class="mediacao-info">
     <strong>Mediação:</strong> {{ devolucao.mediacao.plataforma }} · protocolo {{ devolucao.mediacao.protocolo }} ·
     aberta em {{ devolucao.mediacao.dataAbertura.strftime("%d/%m/%Y") }} ·
-    resultado <span class="selo">{{ devolucao.mediacao.resultado }}</span>
+    resultado <span class="selo {{ devolucao.mediacao.resultado }}">{{ devolucao.mediacao.resultado }}</span>
 </p>
 {% endif %}

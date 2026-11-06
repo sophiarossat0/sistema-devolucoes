@@ -1,97 +1,120 @@
-{# Ações do Comercial sobre a devolução aberta na tela de detalhes (RN-12) #}
-<h2>Tratamento pelo Comercial</h2>
+{# Análise Comercial: conferência, encaminhamento ao estoque, mediação e finalização (RF-08 a RF-12) #}
+{% set sem_avaria_itens = devolucao.itens | rejectattr("situacao", "equalto", com_avaria) | list %}
+{% set pendentes_estoque = sem_avaria_itens | rejectattr("encaminhamento") | list %}
+{% macro sim_nao(nome, marcado_sim=false, travado=false) %}
+<div class="alternar pequeno" data-grupo="{{ nome }}">
+    <label class="opcao-sim {{ 'marcada' if marcado_sim }}"><input type="radio" name="{{ nome }}" value="sim"
+        {{ "checked" if marcado_sim }} {{ "disabled" if travado }}> &#10003; Sim</label>
+    <label class="opcao-nao-neutra {{ 'marcada' if not marcado_sim }}"><input type="radio" name="{{ nome }}" value="nao"
+        {{ "checked" if not marcado_sim }} {{ "disabled" if travado }}> Não</label>
+</div>
+{% endmacro %}
+
+<div class="cabecalho-secao">
+    <h2>&#128221; Análise Comercial</h2>
+    {% if devolucao.estaEncerrada() %}<span class="selo">Encerrada</span>{% else %}<span class="selo Pendente">&#9998; Editável</span>{% endif %}
+</div>
+
 {% if devolucao.estaEncerrada() %}
+    {# RN-14: devolução encerrada só pode ser consultada #}
     <p class="dica">Esta devolução está com status {{ devolucao.status }} e não pode mais ser alterada.</p>
 {% else %}
-    <h3>Conferir devolução</h3>
-    {% if devolucao.conferidaComercial %}
-        <p><span class="selo Ativo">Conferida</span> Os dados foram conferidos com a plataforma de origem.</p>
-    {% else %}
-    <form method="post" action="{{ url_for('conferir_devolucao', id=devolucao.id) }}"
-          onsubmit="return confirm('Os dados conferem com a plataforma de origem?')">
-        <p>Compare os dados acima com o pedido na plataforma de origem.</p>
-        <button>Registrar conferência</button>
-    </form>
-    {% endif %}
+<form method="post" action="{{ url_for('salvar_analise', id=devolucao.id) }}" id="form-analise"
+      onsubmit="return confirm('Salvar a análise comercial desta devolução?')">
 
-    <h3>Encaminhamento ao estoque</h3>
-    {% if devolucao.conferidaComercial %}
-    <table>
-        <tr><th>Nº</th><th>Produto</th><th>Quantidade</th><th></th></tr>
-        {% for item in devolucao.itens if item.situacao != com_avaria %}
-        <tr>
-            <td>{{ devolucao.itens.index(item) + 1 }}</td>
-            <td>{{ item.produto.codigo }} - {{ item.produto.nome }}</td>
-            <td>{{ item.quantidade }}</td>
-            <td>
-                {% if item.foiEncaminhado() %}
-                    <span class="selo Ativo">Encaminhado</span>
-                {% else %}
-                <form method="post" action="{{ url_for('registrar_encaminhamento', id=devolucao.id) }}">
-                    <input type="hidden" name="item" value="{{ devolucao.itens.index(item) + 1 }}">
-                    <button class="pequeno">Registrar encaminhamento</button>
-                </form>
-                {% endif %}
-            </td>
-        </tr>
+    <div class="pergunta">
+        <p class="rotulo">Dados conferidos com a plataforma de origem?</p>
+        {% if devolucao.conferidaComercial %}
+            <p><span class="selo Concluída">&#10003; Conferida</span></p>
         {% else %}
-        <tr><td colspan="4" class="dica">Esta devolução não tem produtos Sem Avaria.</td></tr>
-        {% endfor %}
-    </table>
-    <p class="dica">O sistema registra o encaminhamento, mas não altera o saldo de estoque da empresa.</p>
-    {% else %}
-        <p class="dica">Disponível depois da conferência da devolução (RN-06).</p>
-    {% endif %}
-
-    {% if devolucao.possuiAvaria() %}
-    <h3>Mediação</h3>
-    {% if not devolucao.conferidaComercial %}
-        <p class="dica">Disponível depois da conferência da devolução (RN-06).</p>
-    {% elif devolucao.mediacao is none %}
-    <form method="post" action="{{ url_for('gerenciar_mediacao', id=devolucao.id) }}">
-        <div class="campos">
-            <div class="campo">
-                <label for="plataforma">Plataforma</label>
-                <select id="plataforma" name="plataforma">
-                    {% for p in plataformas %}<option {{ "selected" if devolucao.plataforma == p }}>{{ p }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="campo">
-                <label for="protocolo">Protocolo</label>
-                <input id="protocolo" name="protocolo">
-            </div>
-            <button>Registrar mediação</button>
-        </div>
-    </form>
-    {% elif devolucao.mediacao.estaPendente() %}
-    <form method="post" action="{{ url_for('gerenciar_mediacao', id=devolucao.id) }}"
-          onsubmit="return confirm('Confirmar o resultado? Se for Recusada, a devolução será encerrada como Perdas.')">
-        <div class="campos">
-            <div class="campo">
-                <label for="resultado">Resultado</label>
-                <select id="resultado" name="resultado">
-                    <option value="">Selecione...</option>
-                    {% for r in resultados %}<option>{{ r }}</option>{% endfor %}
-                </select>
-            </div>
-            <button>Registrar resultado</button>
-        </div>
-    </form>
-    {% else %}
-        <p>Resultado registrado: <span class="selo">{{ devolucao.mediacao.resultado }}</span></p>
-    {% endif %}
-    {% endif %}
-
-    <h3>Finalizar devolução</h3>
-    <form method="post" action="{{ url_for('finalizar_devolucao', id=devolucao.id) }}"
-          onsubmit="return confirm('Confirmar a finalização da devolução?')">
-        {% set pendencias = devolucao.listarPendencias() %}
-        {% if pendencias %}
-            <p>Ainda falta (RN-13):</p>
-            <ul>{% for pendencia in pendencias %}<li>{{ pendencia }}</li>{% endfor %}</ul>
-        {% else %}
-            <p>Todas as condições foram atendidas. A devolução já pode ser finalizada.</p>
+            {# RN-06: a conferência vem antes do estoque e da mediação #}
+            {{ sim_nao("conferida") }}
         {% endif %}
-        <button>Finalizar devolução</button>
-    </form>
+    </div>
+
+    <div class="pergunta">
+        <p class="rotulo">Entrada no estoque realizada?</p>
+        {% if not sem_avaria_itens %}
+            <p class="dica">Esta devolução não tem produtos Sem Avaria para encaminhar ao estoque.</p>
+        {% elif not pendentes_estoque %}
+            <p><span class="selo Concluída">&#10003; Todos os produtos Sem Avaria foram encaminhados</span></p>
+        {% else %}
+            {# RF-09: encaminha os produtos Sem Avaria sem alterar o saldo do estoque #}
+            {{ sim_nao("estoque") }}
+        {% endif %}
+    </div>
+
+    {# RN-09: só devoluções com produto Com Avaria têm mediação #}
+    {% if devolucao.possuiAvaria() %}
+    <div class="pergunta">
+        <p class="rotulo">Precisou abrir mediação?</p>
+        {% if devolucao.mediacao is none %}
+            {{ sim_nao("mediacao") }}
+            <div class="campos detalhe-mediacao" hidden style="margin-top: 12px">
+                <div class="campo">
+                    <label for="plataforma">Plataforma</label>
+                    <select id="plataforma" name="plataforma">
+                        {% for p in plataformas %}<option {{ "selected" if devolucao.plataforma == p }}>{{ p }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="protocolo" class="obrigatorio">Protocolo</label>
+                    <input id="protocolo" name="protocolo" placeholder="Número do protocolo na plataforma">
+                </div>
+            </div>
+        {% elif devolucao.mediacao.estaPendente() %}
+            <input type="hidden" name="mediacao" value="sim">
+            <p>Mediação aberta na {{ devolucao.mediacao.plataforma }} (protocolo {{ devolucao.mediacao.protocolo }}).</p>
+            <div class="campos" style="margin-top: 8px">
+                <div class="campo" style="max-width: 320px">
+                    <label for="resultado">Resultado da mediação</label>
+                    <select id="resultado" name="resultado">
+                        <option value="">Ainda pendente</option>
+                        {% for r in resultados %}<option>{{ r }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            {# RN-11 #}
+            <p class="dica">Se o resultado for Recusada, a devolução é encerrada como Perdas.</p>
+        {% else %}
+            <p><span class="selo {{ devolucao.mediacao.resultado }}">Resultado: {{ devolucao.mediacao.resultado }}</span></p>
+        {% endif %}
+    </div>
+    {% endif %}
+</form>
+
+<form method="post" action="{{ url_for('finalizar_devolucao', id=devolucao.id) }}" id="form-concluir"
+      onsubmit="return confirm('Confirmar a finalização da devolução?')"></form>
+
+{% set pendencias = devolucao.listarPendencias() %}
+<div class="pendencias {{ 'ok' if not pendencias }}">
+    {% if pendencias %}
+        {# RN-13: condições para finalizar #}
+        <p class="rotulo">Ainda falta para finalizar:</p>
+        <ul>{% for pendencia in pendencias %}<li>{{ pendencia }}</li>{% endfor %}</ul>
+    {% else %}
+        <p>&#10003; Todas as condições foram atendidas. A devolução já pode ser concluída.</p>
+    {% endif %}
+</div>
+
+<div class="botoes direita">
+    <button class="secundario" form="form-analise">&#128172; Salvar Análise</button>
+    {# UC-03: o sistema verifica a RN-13 ao finalizar e, se faltar algo, lista as pendências (exceção 4a) #}
+    <button class="concluir" form="form-concluir">&#10003; Finalizar Devolução</button>
+</div>
+
+<script>
+    // Botões Sim/Não: destaca a opção marcada e mostra os campos da mediação quando a resposta é Sim
+    document.querySelectorAll(".alternar[data-grupo]").forEach(grupo => {
+        const atualizar = () => {
+            grupo.querySelectorAll("label").forEach(l => l.classList.toggle("marcada", l.querySelector("input").checked));
+            if (grupo.dataset.grupo === "mediacao") {
+                const sim = grupo.querySelector("input[value=sim]").checked;
+                document.querySelector(".detalhe-mediacao").hidden = !sim;
+            }
+        };
+        grupo.querySelectorAll("input").forEach(i => i.addEventListener("change", atualizar));
+        atualizar();
+    });
+</script>
 {% endif %}
