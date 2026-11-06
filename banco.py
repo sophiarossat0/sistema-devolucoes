@@ -83,6 +83,10 @@ CREATE TABLE IF NOT EXISTS historico (
     acao TEXT NOT NULL,
     data_hora TEXT NOT NULL
 );
+-- RNF-05: índices para a consulta continuar rápida com muitas devoluções cadastradas
+CREATE INDEX IF NOT EXISTS idx_itens_devolucao ON itens_devolucao(devolucao_id);
+CREATE INDEX IF NOT EXISTS idx_evidencias_item ON evidencias(item_id);
+CREATE INDEX IF NOT EXISTS idx_historico_devolucao ON historico(devolucao_id);
 """
 
 
@@ -273,34 +277,45 @@ def salvar_devolucao(devolucao):
 def carregar_devolucao(id):
     """Monta o objeto Devolucao completo (itens, evidências, mediação e histórico)."""
     with conectar() as conexao:
-        linha = conexao.execute("SELECT * FROM devolucoes WHERE id = ?", (id,)).fetchone()
-        if linha is None:
-            return None
-        devolucao = Devolucao(linha["numero_pedido"], linha["plataforma"], date.fromisoformat(linha["data_recebimento"]),
-                              buscar_usuario_por_id(linha["responsavel_id"]), linha["status"],
-                              bool(linha["conferida_comercial"]), linha["id"])
+        return _montar_devolucao(conexao, id)
 
-        for l in conexao.execute("SELECT * FROM itens_devolucao WHERE devolucao_id = ? ORDER BY id", (id,)):
-            item = ItemDevolucao(buscar_produto_por_id(l["produto_id"]), l["quantidade"], devolucao,
-                                 l["situacao"], l["descricao_avaria"] or "", l["id"])
-            for e in conexao.execute("SELECT * FROM evidencias WHERE item_id = ? ORDER BY id", (item.id,)):
-                item.evidencias.append(Evidencia(e["tipo"], e["caminho_arquivo"],
-                                                 datetime.fromisoformat(e["data_envio"]), e["id"]))
-            e = conexao.execute("SELECT * FROM encaminhamentos WHERE item_id = ?", (item.id,)).fetchone()
-            if e is not None:
-                item.encaminhamento = EncaminhamentoEstoque(e["quantidade"], datetime.fromisoformat(e["data_hora"]),
-                                                            buscar_usuario_por_id(e["responsavel_id"]), e["id"])
-            devolucao.itens.append(item)
 
-        m = conexao.execute("SELECT * FROM mediacoes WHERE devolucao_id = ?", (id,)).fetchone()
-        if m is not None:
-            devolucao.mediacao = Mediacao(m["plataforma"], m["protocolo"], date.fromisoformat(m["data_abertura"]),
-                                          m["resultado"], m["id"])
+def _montar_devolucao(conexao, id):
+    """Monta a devolução usando uma conexão já aberta (RNF-05: evita abrir o banco várias vezes)."""
+    def usuario(id_usuario):
+        return _para_usuario(conexao.execute("SELECT * FROM usuarios WHERE id = ?", (id_usuario,)).fetchone())
 
-        for h in conexao.execute("SELECT * FROM historico WHERE devolucao_id = ? ORDER BY id", (id,)):
-            devolucao.historico.append(RegistroHistorico(h["acao"], datetime.fromisoformat(h["data_hora"]),
-                                                         buscar_usuario_por_id(h["usuario_id"]), h["id"]))
-        return devolucao
+    def produto(id_produto):
+        return _para_produto(conexao.execute("SELECT * FROM produtos WHERE id = ?", (id_produto,)).fetchone())
+
+    linha = conexao.execute("SELECT * FROM devolucoes WHERE id = ?", (id,)).fetchone()
+    if linha is None:
+        return None
+    devolucao = Devolucao(linha["numero_pedido"], linha["plataforma"], date.fromisoformat(linha["data_recebimento"]),
+                          usuario(linha["responsavel_id"]), linha["status"],
+                          bool(linha["conferida_comercial"]), linha["id"])
+
+    for l in conexao.execute("SELECT * FROM itens_devolucao WHERE devolucao_id = ? ORDER BY id", (id,)).fetchall():
+        item = ItemDevolucao(produto(l["produto_id"]), l["quantidade"], devolucao,
+                             l["situacao"], l["descricao_avaria"] or "", l["id"])
+        for e in conexao.execute("SELECT * FROM evidencias WHERE item_id = ? ORDER BY id", (item.id,)):
+            item.evidencias.append(Evidencia(e["tipo"], e["caminho_arquivo"],
+                                             datetime.fromisoformat(e["data_envio"]), e["id"]))
+        e = conexao.execute("SELECT * FROM encaminhamentos WHERE item_id = ?", (item.id,)).fetchone()
+        if e is not None:
+            item.encaminhamento = EncaminhamentoEstoque(e["quantidade"], datetime.fromisoformat(e["data_hora"]),
+                                                        usuario(e["responsavel_id"]), e["id"])
+        devolucao.itens.append(item)
+
+    m = conexao.execute("SELECT * FROM mediacoes WHERE devolucao_id = ?", (id,)).fetchone()
+    if m is not None:
+        devolucao.mediacao = Mediacao(m["plataforma"], m["protocolo"], date.fromisoformat(m["data_abertura"]),
+                                      m["resultado"], m["id"])
+
+    for h in conexao.execute("SELECT * FROM historico WHERE devolucao_id = ? ORDER BY id", (id,)).fetchall():
+        devolucao.historico.append(RegistroHistorico(h["acao"], datetime.fromisoformat(h["data_hora"]),
+                                                     usuario(h["usuario_id"]), h["id"]))
+    return devolucao
 
 
 def pesquisar_devolucoes(numero_pedido="", status="", codigo_produto="", data_inicio=None, data_fim=None):
@@ -327,7 +342,7 @@ def pesquisar_devolucoes(numero_pedido="", status="", codigo_produto="", data_in
     sql += " ORDER BY d.id"
     with conectar() as conexao:
         ids = [linha["id"] for linha in conexao.execute(sql, parametros)]
-    return [carregar_devolucao(id) for id in ids]
+        return [_montar_devolucao(conexao, id) for id in ids]
 
 
 def contar_devolucoes_por_status():
