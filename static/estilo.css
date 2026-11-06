@@ -275,3 +275,42 @@ td form { display: inline; }
     .menu a { padding: 8px 10px; }
     .conteudo { padding: 16px; }
 }
+
+/* ---------- cadastro de devolução em uma tela ---------- */
+.cabecalho-secao { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cabecalho-secao h2 { margin: 0; }
+.item { border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px 14px 14px; margin-bottom: 12px; background: #fff; }
+.item-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.item-titulo { font-size: 12px; color: var(--texto-suave); }
+.item .remover { color: var(--erro-texto); font-size: 12px; }
+.item .campo.produto { flex: 3 1 260px; }
+.item .campo.quantidade { flex: 1 1 110px; }
+.item .campo.estado { flex: 3 1 300px; }
+.item .avaria { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--borda); }
+.item .avaria[hidden] { display: none; }
+.alternar { display: flex; gap: 8px; }
+.alternar label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--borda-forte);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--texto);
+    font-size: 14px;
+    font-weight: 400;
+}
+.alternar input { position: absolute; opacity: 0; pointer-events: none; }
+.alternar .opcao-sim.marcada { background: var(--sucesso); border-color: var(--sucesso-borda); color: var(--sucesso-texto); }
+.alternar .opcao-nao.marcada { background: var(--erro); border-color: var(--erro-borda); color: var(--erro-texto); }
+.adicionar-item {
+    width: 100%;
+    justify-content: center;
+    background: #fff;
+    color: var(--texto-suave);
+    border: 1px dashed var(--borda-forte);
+}
+.adicionar-item:hover { background: #f9fafb; color: var(--texto); border-color: var(--texto-suave); }

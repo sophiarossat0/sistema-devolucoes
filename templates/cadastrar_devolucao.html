@@ -1,113 +1,147 @@
 {% extends "base.html" %}
-{% block titulo %}Cadastrar devolução{% endblock %}
+{% block titulo %}Nova devolução{% endblock %}
 {% block conteudo %}
-<h1>Cadastrar devolução</h1>
+<div class="cabecalho">
+    <a class="voltar" href="{{ url_for('consultar_devolucoes') }}" title="Voltar para a consulta">&larr;</a>
+    <h1>Nova Devolução</h1>
+</div>
 
-<form method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data" id="form-devolucao"
+      onsubmit="return confirm('Confirmar o cadastro da devolução com ' + document.querySelectorAll('.item').length + ' produto(s)?')">
     <div class="cartao">
-        <h2>Dados da devolução</h2>
+        <h2>Dados da Devolução</h2>
         <div class="campos">
             <div class="campo">
-                <label for="pedido">Número do pedido</label>
-                <input id="pedido" name="pedido" value="{{ dados.pedido }}" {{ "readonly" if dados.itens }}>
+                <label for="pedido" class="obrigatorio">Nº do Pedido</label>
+                <input id="pedido" name="pedido" value="{{ dados.pedido }}" placeholder="Ex.: 2345678901">
             </div>
             <div class="campo">
-                <label for="plataforma">Plataforma</label>
-                {% if dados.itens %}
-                    <input id="plataforma" name="plataforma" value="{{ dados.plataforma }}" readonly>
-                {% else %}
+                <label for="plataforma" class="obrigatorio">Plataforma</label>
                 <select id="plataforma" name="plataforma">
                     <option value="">Selecione...</option>
                     {% for p in plataformas %}<option {{ "selected" if dados.plataforma == p }}>{{ p }}</option>{% endfor %}
                 </select>
-                {% endif %}
             </div>
             <div class="campo">
-                <label for="data">Data de recebimento (DD/MM/AAAA)</label>
-                <input id="data" name="data" value="{{ dados.data }}" placeholder="DD/MM/AAAA" {{ "readonly" if dados.itens }}>
+                <label for="data" class="obrigatorio">Data de Recebimento</label>
+                <input id="data" name="data" value="{{ dados.data }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10">
             </div>
         </div>
     </div>
 
     <div class="cartao">
-        <h2>Conferência do produto</h2>
-        <div class="campos">
-            <div class="campo">
-                <label for="produto">Produto</label>
-                <select id="produto" name="produto">
-                    <option value="">Selecione...</option>
-                    {% for p in produtos %}<option value="{{ p.codigo }}">{{ p.codigo }} - {{ p.nome }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="campo">
-                <label for="quantidade">Quantidade recebida</label>
-                <input id="quantidade" name="quantidade" type="number" min="1">
-            </div>
-            <div class="campo">
-                <label>Situação</label>
-                <div class="opcoes">
-                    {% for situacao in situacoes %}
-                    <label><input type="radio" name="situacao" value="{{ situacao }}" {{ "checked" if loop.first }}
-                                  onchange="mostrarAvaria()"> {{ situacao }}</label>
-                    {% endfor %}
-                </div>
-            </div>
+        <div class="cabecalho-secao">
+            <h2>Produtos Recebidos</h2>
+            <button type="button" class="link" onclick="adicionarItem()">+ Adicionar Produto</button>
         </div>
+        <div id="itens"></div>
+        <button type="button" class="adicionar-item" onclick="adicionarItem()">+ Adicionar mais um produto</button>
+    </div>
 
-        <div id="avaria" class="campos" style="margin-top: 14px">
-            <div class="campo largo">
-                <label for="descricao">Descrição da avaria</label>
-                <textarea id="descricao" name="descricao" rows="2"></textarea>
-            </div>
-            <div class="campo">
-                <label for="fotos">Fotos (JPG ou PNG, até 10 MB)</label>
-                <input id="fotos" name="fotos" type="file" accept=".jpg,.jpeg,.png" multiple>
-            </div>
-            <div class="campo">
-                <label for="videos">Vídeos (MP4, até 100 MB)</label>
-                <input id="videos" name="videos" type="file" accept=".mp4" multiple>
-            </div>
-        </div>
-
-        <div class="botoes">
-            <button class="secundario" name="acao" value="adicionar">Adicionar produto à devolução</button>
-        </div>
+    <div class="botoes direita">
+        <a class="botao secundario" href="{{ url_for('consultar_devolucoes') }}">Cancelar</a>
+        <button>&#10003; Registrar Devolução</button>
     </div>
 </form>
 
-<div class="cartao">
-    <h2>Produtos da devolução</h2>
-    {% if dados.itens %}
-    <table>
-        <tr><th>Nº</th><th>Produto</th><th>Quantidade</th><th>Situação</th><th>Evidências</th></tr>
-        {% for item in dados.itens %}
-        <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ item.codigo }} - {{ nomes[item.codigo] }}</td>
-            <td>{{ item.quantidade }}</td>
-            <td>{{ item.situacao }}</td>
-            <td>{{ item.evidencias | length }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    {% else %}
-    <p class="dica">Nenhum produto adicionado ainda.</p>
-    {% endif %}
-    <form method="post" class="botoes">
-        <button name="acao" value="confirmar"
-                onclick="return confirm('Confirmar o cadastro da devolução com {{ dados.itens | length }} produto(s)?')">
-            Confirmar cadastro</button>
-        <button class="secundario" name="acao" value="cancelar">Cancelar</button>
-    </form>
-</div>
+<datalist id="lista-produtos">
+    {% for p in produtos %}<option value="{{ p.sku }} — {{ p.nome }}" data-codigo="{{ p.codigo }}"></option>{% endfor %}
+</datalist>
+
+<template id="modelo-item">
+    <div class="item">
+        <div class="item-topo">
+            <span class="item-titulo">Item <span class="numero"></span></span>
+            <button type="button" class="link remover" title="Remover este produto">Remover</button>
+        </div>
+        <input type="hidden" name="indice">
+        <input type="hidden" data-campo="codigo">
+        <div class="campos">
+            <div class="campo produto">
+                <label class="obrigatorio">SKU / Produto</label>
+                <input class="busca" list="lista-produtos" placeholder="&#128269; Buscar por SKU ou nome..." autocomplete="off">
+            </div>
+            <div class="campo quantidade">
+                <label class="obrigatorio">Qtd</label>
+                <input data-campo="quantidade" type="number" min="1" value="1">
+            </div>
+            {# Registrar Conferência dos Produtos («include»): Sim = Sem Avaria, Não = Com Avaria (RN-04) #}
+            <div class="campo estado">
+                <label>Produto em bom estado?</label>
+                <div class="alternar">
+                    <label class="opcao-sim"><input type="radio" data-campo="situacao" value="{{ sem_avaria }}" checked> &#10003; Sim</label>
+                    <label class="opcao-nao"><input type="radio" data-campo="situacao" value="{{ com_avaria }}"> &#9432; Não</label>
+                </div>
+            </div>
+        </div>
+        {# Registrar Avaria e Evidências («extend»): só aparece quando o produto não está em bom estado (RN-05) #}
+        <div class="avaria campos" hidden>
+            <div class="campo largo">
+                <label class="obrigatorio">Descrição da avaria</label>
+                <textarea data-campo="descricao" rows="2" placeholder="Descreva o problema encontrado no produto"></textarea>
+            </div>
+            <div class="campo">
+                <label class="obrigatorio">Fotos (JPG ou PNG, até 10 MB)</label>
+                <input data-campo="fotos" type="file" accept=".jpg,.jpeg,.png" multiple>
+            </div>
+            <div class="campo">
+                <label class="obrigatorio">Vídeos (MP4, até 100 MB)</label>
+                <input data-campo="videos" type="file" accept=".mp4" multiple>
+            </div>
+        </div>
+    </div>
+</template>
 
 <script>
-    // Registrar Avaria e Evidências («extend»): os campos só aparecem para produto Com Avaria (RN-05)
-    function mostrarAvaria() {
-        const marcado = document.querySelector("input[name=situacao]:checked");
-        document.getElementById("avaria").style.display =
-            marcado && marcado.value === "{{ com_avaria }}" ? "flex" : "none";
+    const COM_AVARIA = {{ com_avaria | tojson }};
+    const itensIniciais = {{ dados.itens | tojson }};
+    const produtosPorTexto = {};
+    document.querySelectorAll("#lista-produtos option").forEach(o => produtosPorTexto[o.value] = o.dataset.codigo);
+    let proximo = 0;
+
+    function numerar() {
+        document.querySelectorAll(".item").forEach((item, i) => item.querySelector(".numero").textContent = i + 1);
     }
-    mostrarAvaria();
+
+    function adicionarItem(dados = {}) {
+        const indice = proximo++;
+        const item = document.getElementById("modelo-item").content.firstElementChild.cloneNode(true);
+        item.querySelector("[name=indice]").value = indice;
+        item.querySelectorAll("[data-campo]").forEach(campo => {
+            campo.name = campo.dataset.campo + "_" + indice;
+            const valor = dados[campo.dataset.campo];
+            if (valor === undefined || campo.type === "file") return;
+            if (campo.type === "radio") campo.checked = campo.value === valor; else campo.value = valor;
+        });
+        const busca = item.querySelector(".busca"), codigo = item.querySelector("[data-campo=codigo]");
+        if (dados.codigo) {
+            const texto = Object.keys(produtosPorTexto).find(t => produtosPorTexto[t] === dados.codigo);
+            busca.value = texto || dados.codigo;
+        }
+        busca.addEventListener("input", () => codigo.value = produtosPorTexto[busca.value] || busca.value.trim());
+        const avaria = item.querySelector(".avaria");
+        const atualizar = () => {
+            const marcado = item.querySelector("[data-campo=situacao]:checked");
+            const comAvaria = marcado && marcado.value === COM_AVARIA;
+            avaria.hidden = !comAvaria;
+            item.querySelector(".opcao-sim").classList.toggle("marcada", !comAvaria);
+            item.querySelector(".opcao-nao").classList.toggle("marcada", comAvaria);
+        };
+        item.querySelectorAll("[data-campo=situacao]").forEach(r => r.addEventListener("change", atualizar));
+        atualizar();
+        item.querySelector(".remover").addEventListener("click", () => {
+            if (document.querySelectorAll(".item").length > 1) { item.remove(); numerar(); }
+        });
+        document.getElementById("itens").appendChild(item);
+        numerar();
+    }
+
+    // Data no formato DD/MM/AAAA enquanto o usuário digita (RNF-03)
+    document.getElementById("data").addEventListener("input", e => {
+        const n = e.target.value.replace(/\D/g, "").slice(0, 8);
+        e.target.value = [n.slice(0, 2), n.slice(2, 4), n.slice(4)].filter(Boolean).join("/");
+    });
+
+    (itensIniciais.length ? itensIniciais : [{}]).forEach(adicionarItem);
 </script>
 {% endblock %}

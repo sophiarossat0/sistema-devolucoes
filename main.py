@@ -205,10 +205,15 @@ def produtos():
 def montar_devolucao(usuario, dados):
     """Monta a devolução com os produtos já conferidos, aplicando as regras RN-02, RN-04 e RN-05."""
     devolucao = usuario.cadastrarDevolucao(dados["pedido"], dados.get("plataforma", ""), ler_data(dados["data"]))
-    for item_dados in dados["itens"]:
-        produto = banco.buscar_produto_por_codigo(item_dados["codigo"])
-        item = devolucao.adicionarItem(produto, ler_quantidade(item_dados["quantidade"]))
-        registrar_conferencia(item, item_dados)
+    for posicao, item_dados in enumerate(dados["itens"], start=1):
+        try:
+            if not item_dados["codigo"]:
+                raise ErroRegraNegocio("Selecione o produto.")
+            produto = banco.buscar_produto_por_codigo(item_dados["codigo"])
+            item = devolucao.adicionarItem(produto, ler_quantidade(item_dados["quantidade"]))
+            registrar_conferencia(item, item_dados)
+        except ErroRegraNegocio as erro:
+            raise ErroRegraNegocio(f"Item {posicao}: {erro}")
     return devolucao
 
 
@@ -243,59 +248,67 @@ def guardar_arquivos_enviados(campo, tipo):
     return evidencias
 
 
+def codigo_do_produto(texto, produtos):
+    """Aceita o código, o SKU ou o texto "SKU — nome" escolhido na busca e devolve o código do produto."""
+    texto = (texto or "").strip()
+    for produto in produtos:
+        if texto in (produto.codigo, produto.sku, f"{produto.sku} — {produto.nome}"):
+            return produto.codigo
+    return texto
+
+
+def dados_do_formulario(produtos):
+    """Lê os dados da devolução e de cada produto (item) enviados pela tela de cadastro."""
+    dados = {campo: request.form.get(campo, "").strip() for campo in ("pedido", "plataforma", "data")}
+    dados["itens"] = [{
+        "indice": i,
+        "codigo": codigo_do_produto(request.form.get(f"codigo_{i}"), produtos),
+        "quantidade": request.form.get(f"quantidade_{i}", ""),
+        "situacao": request.form.get(f"situacao_{i}", SEM_AVARIA),
+        "descricao": request.form.get(f"descricao_{i}", ""),
+    } for i in request.form.getlist("indice")]
+    return dados
+
+
 @app.route("/devolucoes/nova", methods=["GET", "POST"])
 @acesso(PERFIL_PRODUCAO)
 def cadastrar_devolucao():
-    dados = session.get("nova_devolucao") or {"pedido": "", "plataforma": "", "data": "", "itens": []}
+    """Cadastro da devolução em uma única tela: dados do pedido e um ou mais produtos (UC-01)."""
+    produtos_ativos = [p for p in banco.listar_produtos() if p.ativo]
+    dados = {"pedido": "", "plataforma": "", "data": "", "itens": []}
     if request.method == "POST":
-        acao = request.form.get("acao")
+        dados = dados_do_formulario(produtos_ativos)
         try:
-            if acao == "cancelar":
-                session.pop("nova_devolucao", None)
-                flash("Cadastro cancelado.", "sucesso")
-                return redirect(url_for("cadastrar_devolucao"))
-            if acao == "adicionar":
-                if not dados["itens"]:
-                    dados["pedido"] = request.form.get("pedido", "")
-                    dados["plataforma"] = request.form.get("plataforma", "")
-                    dados["data"] = request.form.get("data", "")
-                novo = {"codigo": request.form.get("produto", ""), "quantidade": request.form.get("quantidade", ""),
-                        "situacao": request.form.get("situacao", ""), "descricao": request.form.get("descricao", ""),
-                        "evidencias": guardar_arquivos_enviados("fotos", FOTO) + guardar_arquivos_enviados("videos", VIDEO)}
-                if not novo["codigo"]:
-                    raise ErroRegraNegocio("Selecione o produto.")
-                montar_devolucao(g.usuario, {**dados, "itens": dados["itens"] + [novo]})  # valida antes de guardar
-                dados["itens"].append(novo)
-                session["nova_devolucao"] = dados
-                flash("Produto adicionado à devolução.", "sucesso")
-                return redirect(url_for("cadastrar_devolucao"))
-            if acao == "confirmar":
-                if not dados["itens"]:
-                    raise ErroRegraNegocio("Adicione pelo menos um produto conferido à devolução.")
-                devolucao = montar_devolucao(g.usuario, dados)
-                if not devolucao.validarCadastro():
-                    raise ErroRegraNegocio("Existem produtos sem classificação ou sem evidências.")
-                for item in devolucao.itens:
-                    for evidencia in item.evidencias:
-                        evidencia.caminhoArquivo = banco.copiar_evidencia(evidencia.caminhoArquivo)
-                devolucao.registrarHistorico(f"Devolução cadastrada com {len(devolucao.itens)} produto(s), "
-                                     f"plataforma {devolucao.plataforma}", g.usuario)
-                for item in devolucao.itens:
-                    texto = f"Produto {item.produto.nome} classificado como {item.situacao}"
-                    if item.situacao == COM_AVARIA:
-                        texto += f" ({len(item.evidencias)} evidência(s) anexada(s))"
-                    devolucao.registrarHistorico(texto, g.usuario)
-                banco.salvar_devolucao(devolucao)
-                session.pop("nova_devolucao", None)
-                flash(f"Devolução nº {devolucao.id} cadastrada com status {devolucao.status}.", "sucesso")
-                return redirect(url_for("cadastrar_devolucao"))
+            if not dados["itens"]:
+                raise ErroRegraNegocio("Adicione pelo menos um produto conferido à devolução.")
+            for item_dados in dados["itens"]:
+                indice = item_dados["indice"]
+                item_dados["evidencias"] = (guardar_arquivos_enviados(f"fotos_{indice}", FOTO) +
+                                            guardar_arquivos_enviados(f"videos_{indice}", VIDEO))
+            devolucao = montar_devolucao(g.usuario, dados)
+            if not devolucao.validarCadastro():
+                raise ErroRegraNegocio("Existem produtos sem classificação ou sem evidências.")
+            for item in devolucao.itens:
+                for evidencia in item.evidencias:
+                    evidencia.caminhoArquivo = banco.copiar_evidencia(evidencia.caminhoArquivo)
+            devolucao.registrarHistorico(f"Devolução cadastrada com {len(devolucao.itens)} produto(s), "
+                                         f"plataforma {devolucao.plataforma}", g.usuario)
+            for item in devolucao.itens:
+                texto = f"Produto {item.produto.nome} classificado como {item.situacao}"
+                if item.situacao == COM_AVARIA:
+                    texto += f" ({len(item.evidencias)} evidência(s) anexada(s))"
+                devolucao.registrarHistorico(texto, g.usuario)
+            banco.salvar_devolucao(devolucao)
+            flash(f"Devolução nº {devolucao.id} cadastrada com status {devolucao.status}.", "sucesso")
+            return redirect(url_for("cadastrar_devolucao"))
         except ErroRegraNegocio as erro:
             flash(str(erro), "erro")
-    produtos_ativos = [p for p in banco.listar_produtos() if p.ativo]
-    nomes = {p.codigo: p.nome for p in banco.listar_produtos()}
-    return render_template("cadastrar_devolucao.html", dados=dados, produtos=produtos_ativos, nomes=nomes,
-                           situacoes=[SEM_AVARIA, COM_AVARIA], com_avaria=COM_AVARIA,
-                           plataformas=PLATAFORMAS)
+            if any(item["situacao"] == COM_AVARIA for item in dados["itens"]):
+                flash("Selecione novamente as fotos e os vídeos dos produtos com avaria.", "aviso")
+        for item_dados in dados["itens"]:
+            item_dados.pop("evidencias", None)  # os arquivos não voltam para a tela
+    return render_template("cadastrar_devolucao.html", dados=dados, produtos=produtos_ativos,
+                           sem_avaria=SEM_AVARIA, com_avaria=COM_AVARIA, plataformas=PLATAFORMAS)
 
 
 # ---------------------------------------------------------------- consultas (RF-07 e RF-14)
