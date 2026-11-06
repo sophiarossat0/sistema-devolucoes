@@ -27,6 +27,22 @@ O sistema abre sozinho no navegador, no endereço http://127.0.0.1:5000. Para pa
 
 No primeiro acesso use o usuário **admin** com a senha **admin123**. Depois cadastre os usuários da Produção e do Comercial e os produtos.
 
+### Dados de exemplo (opcional)
+
+Para testar sem precisar cadastrar nada, rode uma vez:
+
+```bash
+python dados_exemplo.py
+```
+
+O script cadastra os usuários abaixo, 6 produtos e 3 devoluções com status Em Aberto (uma só com produto Sem Avaria, uma com produto Com Avaria e Sem Avaria, e uma só com produto Com Avaria, com foto e vídeo de exemplo). Pode ser executado de novo sem duplicar nada.
+
+| Perfil | Login | Senha |
+| --- | --- | --- |
+| Administrador | admin | admin123 |
+| Produção | ana | ana123 |
+| Comercial | carlos | carlos123 |
+
 ## Estrutura do projeto
 
 | Arquivo | Conteúdo |
@@ -37,5 +53,6 @@ No primeiro acesso use o usuário **admin** com a senha **admin123**. Depois cad
 | `banco.py` | Gravação e leitura dos dados no banco SQLite |
 | `requirements.txt` | Biblioteca necessária (Flask) |
 | `docs/` | Diagramas de casos de uso e de classes (Draw.io) |
+| `dados_exemplo.py` e `exemplos/` | Script de dados de exemplo e a foto e o vídeo usados nas devoluções de exemplo |
 
 O banco de dados (`devolucoes.db`) e a pasta `evidencias/` são criados automaticamente na primeira execução.
