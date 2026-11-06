@@ -1,59 +1,89 @@
 {% extends "base.html" %}
-{% block titulo %}Consultar devoluções{% endblock %}
+{% block titulo %}Devoluções{% endblock %}
 {% block conteudo %}
-<h1>Consultar devoluções</h1>
-
-<form method="get" class="cartao">
-    <h2>Filtros <span class="dica">(deixe em branco para ignorar)</span></h2>
-    <div class="campos">
-        <div class="campo">
-            <label for="pedido">Número do pedido</label>
-            <input id="pedido" name="pedido" value="{{ filtros.pedido }}">
-        </div>
-        <div class="campo">
-            <label for="status">Status</label>
-            <select id="status" name="status">
-                <option value="">Todos</option>
-                {% for s in status %}<option {{ "selected" if filtros.status == s }}>{{ s }}</option>{% endfor %}
-            </select>
-        </div>
-        <div class="campo">
-            <label for="produto">Código do produto</label>
-            <input id="produto" name="produto" value="{{ filtros.produto }}">
-        </div>
-        <div class="campo">
-            <label for="inicio">Recebidas a partir de</label>
-            <input id="inicio" name="inicio" value="{{ filtros.inicio }}" placeholder="DD/MM/AAAA">
-        </div>
-        <div class="campo">
-            <label for="fim">Recebidas até</label>
-            <input id="fim" name="fim" value="{{ filtros.fim }}" placeholder="DD/MM/AAAA">
-        </div>
-        <button>Pesquisar</button>
+<div class="cabecalho">
+    <a class="voltar" href="{{ url_for('inicio') }}" title="Voltar ao início">&larr;</a>
+    <h1>Devoluções <span class="contador">{{ devolucoes | length }}</span></h1>
+    {% if pode_cadastrar %}
+    <div class="acoes">
+        <a class="botao" href="{{ url_for('cadastrar_devolucao') }}">+ Nova Devolução</a>
     </div>
-</form>
-
-<div class="cartao">
-    <h2>Devoluções encontradas</h2>
-    {% if devolucoes %}
-    <table>
-        <tr><th>Nº</th><th>Pedido</th><th>Plataforma</th><th>Recebimento</th><th>Produtos</th><th>Status</th><th></th></tr>
-        {% for d in devolucoes %}
-        <tr>
-            <td>{{ d.id }}</td>
-            <td>{{ d.numeroPedido }}</td>
-            <td>{{ d.plataforma or "-" }}</td>
-            <td>{{ d.dataRecebimento.strftime("%d/%m/%Y") }}</td>
-            <td>{{ d.itens | length }}</td>
-            <td><span class="selo {{ d.status | replace(' ', '-') }}">{{ d.status }}</span></td>
-            <td><a class="botao secundario pequeno" href="{{ url_for('detalhar_devolucao', id=d.id) }}" target="_blank"
-                   rel="noopener" title="Abre os detalhes em uma nova aba">Ver detalhes</a></td>
-        </tr>
-        {% endfor %}
-    </table>
-    {% else %}
-    <p class="dica">Nenhuma devolução encontrada.</p>
     {% endif %}
 </div>
 
+{# Abas por status (RF-07 e RF-11): cada aba filtra a consulta por um status #}
+<nav class="abas">
+    {% for s in [""] + status %}
+    <a class="aba {{ 'ativa' if filtros.status == s }}"
+       href="{{ url_for('consultar_devolucoes', status=s, pedido=filtros.pedido, produto=filtros.produto, inicio=filtros.inicio, fim=filtros.fim) }}">
+        {{ s or "Todas" }} <span class="contador">{{ contagem[s] }}</span>
+    </a>
+    {% endfor %}
+</nav>
+
+<details class="cartao filtros" {{ "open" if filtros.pedido or filtros.produto or filtros.inicio or filtros.fim }}>
+    <summary>Filtros</summary>
+    <form method="get">
+        <input type="hidden" name="status" value="{{ filtros.status }}">
+        <div class="campos" style="margin-top: 12px">
+            <div class="campo">
+                <label for="pedido">Número do pedido</label>
+                <input id="pedido" name="pedido" value="{{ filtros.pedido }}" placeholder="Ex.: 2345678901">
+            </div>
+            <div class="campo">
+                <label for="produto">Código do produto</label>
+                <input id="produto" name="produto" value="{{ filtros.produto }}" placeholder="Ex.: P001">
+            </div>
+            <div class="campo">
+                <label for="inicio">Recebidas a partir de</label>
+                <input id="inicio" name="inicio" value="{{ filtros.inicio }}" placeholder="DD/MM/AAAA">
+            </div>
+            <div class="campo">
+                <label for="fim">Recebidas até</label>
+                <input id="fim" name="fim" value="{{ filtros.fim }}" placeholder="DD/MM/AAAA">
+            </div>
+        </div>
+        <div class="botoes">
+            <button>Pesquisar</button>
+            <a class="botao secundario" href="{{ url_for('consultar_devolucoes', status=filtros.status) }}">Limpar</a>
+        </div>
+    </form>
+</details>
+
+<div class="cartao tabela">
+    {% if devolucoes %}
+    <table>
+        <thead>
+            <tr><th>Código</th><th>Pedido</th><th>Plataforma</th><th>Data receb.</th><th>Itens</th><th>Status</th>
+                <th>Mediação</th><th>Registrado por</th></tr>
+        </thead>
+        <tbody>
+        {% for d in devolucoes %}
+            {% set avariados = d.itens | selectattr("situacao", "equalto", com_avaria) | list | length %}
+            <tr>
+                <td><a class="codigo" href="{{ url_for('detalhar_devolucao', id=d.id) }}" target="_blank" rel="noopener"
+                       title="Abre os detalhes em uma nova aba">{{ d.id | codigo }}</a></td>
+                <td>{{ d.numeroPedido }}</td>
+                <td>{{ d.plataforma or "-" }}</td>
+                <td>{{ d.dataRecebimento.strftime("%d/%m/%Y") }}</td>
+                <td>
+                    <span class="itens" title="Sem Avaria / Com Avaria">
+                        <span class="ok">&#10003; {{ (d.itens | length) - avariados }}</span>
+                        <span class="avaria">&#9888; {{ avariados }}</span>
+                    </span>
+                </td>
+                <td><span class="selo {{ d.status | replace(' ', '-') }}">{{ d.status }}</span></td>
+                <td>
+                    {% if d.mediacao %}<span class="selo {{ d.mediacao.resultado }}">{{ d.mediacao.resultado }}</span>
+                    {% else %}<span class="suave">-</span>{% endif %}
+                </td>
+                <td class="suave">{{ d.responsavel.nome }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="dica" style="padding: 12px">Nenhuma devolução encontrada.</p>
+    {% endif %}
+</div>
 {% endblock %}

@@ -92,6 +92,12 @@ def nome_arquivo(caminho):
     return os.path.basename(caminho)
 
 
+@app.template_filter("codigo")
+def codigo_devolucao(id):
+    """Mostra o identificador único da devolução (RN-01) no formato DEV-0001."""
+    return f"DEV-{id:04d}"
+
+
 # ---------------------------------------------------------------- autenticação (RF-01)
 @app.route("/")
 def raiz():
@@ -303,8 +309,13 @@ def consultar_devolucoes():
                                                 ler_data(filtros["inicio"], False), ler_data(filtros["fim"], False))
     except ErroRegraNegocio as erro:
         flash(str(erro), "erro")
-    return render_template("consultar_devolucoes.html", filtros=filtros, devolucoes=devolucoes,
-                           status=[STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS])
+    status = [STATUS_EM_ABERTO, STATUS_EM_ANDAMENTO, STATUS_CONCLUIDA, STATUS_PERDAS]
+    totais = banco.contar_devolucoes_por_status()
+    contagem = {s: totais.get(s, 0) for s in status}
+    contagem[""] = sum(contagem.values())  # aba "Todas"
+    return render_template("consultar_devolucoes.html", filtros=filtros, devolucoes=devolucoes, status=status,
+                           contagem=contagem, com_avaria=COM_AVARIA,
+                           pode_cadastrar=g.usuario.obterPerfil() == PERFIL_PRODUCAO)
 
 
 @app.route("/devolucoes/<int:id>")

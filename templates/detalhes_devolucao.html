@@ -1,7 +1,11 @@
 {% extends "base.html" %}
-{% block titulo %}Devolução nº {{ devolucao.id }}{% endblock %}
+{% block titulo %}Devolução {{ devolucao.id | codigo }}{% endblock %}
 {% block conteudo %}
-<h1>Devolução nº {{ devolucao.id }}</h1>
+<div class="cabecalho">
+    <a class="voltar" href="{{ url_for('consultar_devolucoes') }}" title="Voltar para a consulta">&larr;</a>
+    <h1>Devolução nº {{ devolucao.id }} <span class="contador">{{ devolucao.id | codigo }}</span></h1>
+    <span class="selo {{ devolucao.status | replace(' ', '-') }}">{{ devolucao.status }}</span>
+</div>
 
 <div class="cartao" id="detalhes">
     <h2>Detalhes da devolução</h2>

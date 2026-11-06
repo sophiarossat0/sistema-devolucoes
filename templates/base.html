@@ -15,22 +15,28 @@
 
 {% if usuario %}
     <header class="topo">
-        <span class="marca">Sistema de Gestão e Controle do Processo de Devoluções</span>
-        <span class="quem">{{ usuario.nome }} ({{ usuario.obterPerfil() }})</span>
-        <a class="botao claro" href="{{ url_for('sair') }}">Sair</a>
-    </header>
-    <div class="corpo">
+        <a class="marca" href="{{ url_for('inicio') }}" title="Sistema de Gestão e Controle do Processo de Devoluções">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+            </svg>
+            Gestão de Devoluções
+        </a>
         <nav class="menu">
             <a href="{{ url_for('inicio') }}" class="{{ 'ativo' if request.endpoint == 'inicio' }}">Início</a>
             {% for nome, rota in menu.items() %}
                 <a href="{{ url_for(rota) }}" class="{{ 'ativo' if request.endpoint == rota }}">{{ nome }}</a>
             {% endfor %}
         </nav>
-        <main class="conteudo">
-            {{ mensagens() }}
-            {% block conteudo %}{% endblock %}
-        </main>
-    </div>
+        <div class="conta">
+            <span class="quem">{{ usuario.nome }} <small>{{ usuario.obterPerfil() }}</small></span>
+            <a class="botao claro" href="{{ url_for('sair') }}">Sair</a>
+        </div>
+    </header>
+    <main class="conteudo">
+        {{ mensagens() }}
+        {% block conteudo %}{% endblock %}
+    </main>
 {% else %}
     <main class="login-pagina">
         <div class="login-caixa">
