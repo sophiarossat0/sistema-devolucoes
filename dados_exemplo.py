@@ -15,8 +15,8 @@ VIDEO_EXEMPLO = os.path.join(PASTA_EXEMPLOS, "video-avaria.mp4")
 
 USUARIOS = [
     # nome, login, senha, perfil
-    ("Ana Souza", "ana", "ana123", PERFIL_PRODUCAO),
-    ("Carlos Lima", "carlos", "carlos123", PERFIL_COMERCIAL),
+    ("Usuário Produção", "producao", "producao123", PERFIL_PRODUCAO),
+    ("Usuário Comercial", "comercial", "comercial123", PERFIL_COMERCIAL),
 ]
 
 PRODUTOS = [
@@ -95,12 +95,12 @@ def main():
     print("Cadastrando dados de exemplo...")
     cadastrar_usuarios(admin)
     cadastrar_produtos(admin)
-    producao = banco.buscar_usuario_por_login("ana")
+    producao = banco.buscar_usuario_por_login("producao")
     if producao is None or not producao.ativo or producao.obterPerfil() != PERFIL_PRODUCAO:
-        print("O usuário ana não é um usuário ativo da Produção. As devoluções de exemplo não foram cadastradas.")
+        print("O usuário producao não é um usuário ativo da Produção. As devoluções de exemplo não foram cadastradas.")
         return
     cadastrar_devolucoes(producao)
-    print("Pronto. Logins: admin/admin123 (Administrador), ana/ana123 (Produção), carlos/carlos123 (Comercial).")
+    print("Pronto. Logins: admin/admin123 (Administrador), producao/producao123 (Produção), comercial/comercial123 (Comercial).")
 
 
 if __name__ == "__main__":

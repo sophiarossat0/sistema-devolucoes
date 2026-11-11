@@ -40,8 +40,8 @@ O script cadastra os usuários abaixo, 6 produtos e 3 devoluções com status Em
 | Perfil | Login | Senha |
 | --- | --- | --- |
 | Administrador | admin | admin123 |
-| Produção | ana | ana123 |
-| Comercial | carlos | carlos123 |
+| Produção | producao | producao123 |
+| Comercial | comercial | comercial123 |
 
 ## Estrutura do projeto
 
