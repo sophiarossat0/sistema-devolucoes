@@ -7,7 +7,7 @@ Sistema para registrar e acompanhar o processo interno de devoluções da empres
 
 ## Funcionalidades implementadas
 
-- Login com senha criptografada e menu de acordo com o perfil (Administrador, Produção ou Comercial)
+- Login com senha protegida por hash (SHA-256) e menu de acordo com o perfil (Administrador, Produção ou Comercial)
 - Gerenciamento de usuários e produtos (Administrador)
 - Cadastro de devolução com conferência dos produtos, registro de avaria e anexação de fotos e vídeos (Produção)
 - Conferência da devolução, encaminhamento ao estoque, mediação e finalização (Comercial), todas na tela de detalhes da devolução
